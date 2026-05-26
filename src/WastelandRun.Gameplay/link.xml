@@ -1,0 +1,22 @@
+<linker>
+  <!-- Preserve all card SO types from IL2CPP managed-stripping=High.
+       These types are referenced only through interfaces (ICardData, ICardEffect, ICardEffectCondition)
+       at runtime, which would cause the linker to strip them silently without these entries. -->
+  <assembly fullname="WastelandRun.Gameplay">
+    <type fullname="WastelandRun.Gameplay.Cards.CardDefinitionSO"        preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.DamageEffectSO"          preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.RestorePlatingEffectSO"  preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.RestoreArmorEffectSO"    preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.ApplyStatusEffectSO"     preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.RepairSubsystemEffectSO" preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.DrawCardsEffectSO"       preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.GainEnergyEffectSO"      preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.ShiftPositionEffectSO"   preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.PositionConditionSO"     preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.SlotStateConditionSO"    preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.StatusConditionSO"       preserve="all"/>
+    <type fullname="WastelandRun.Gameplay.Cards.ChassisMasteryDefinitionSO" preserve="all"/>
+    <!-- Static helper called by every *EffectSO.ToRuntime() that holds gating conditions. -->
+    <type fullname="WastelandRun.Gameplay.Cards.EffectConditionProjection" preserve="all"/>
+  </assembly>
+</linker>

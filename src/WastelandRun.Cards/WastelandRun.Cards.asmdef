@@ -1,0 +1,16 @@
+{
+    "name": "WastelandRun.Cards",
+    "rootNamespace": "WastelandRun.Cards",
+    "references": [
+        "WastelandRun.Vehicle"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

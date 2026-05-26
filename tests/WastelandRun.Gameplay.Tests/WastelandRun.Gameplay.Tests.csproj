@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>WastelandRun.Tests.Gameplay</RootNamespace>
+    <!-- Tests live outside the project folder — disable default Compile globs and use explicit Include. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pull all engine-free source so the test runner can build standalone. -->
+    <Compile Include="..\..\src\WastelandRun.Vehicle\**\*.cs" />
+    <Compile Include="..\..\src\WastelandRun.Cards\**\*.cs" />
+    <Compile Include="..\..\src\WastelandRun.Enemies\**\*.cs" />
+    <!-- Gameplay assembly has Unity-touching code under /Cards (CardDefinitionSO etc.) —
+         only pull the engine-free Combat subfolder for the headless test runner. -->
+    <Compile Include="..\..\src\WastelandRun.Gameplay\Combat\**\*.cs" />
+    <!-- Test files. -->
+    <Compile Include="..\unit\gameplay\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="4.2.2" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+
+</Project>
