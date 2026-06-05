@@ -361,7 +361,16 @@ it is marked Accepted
 > and rationale? Are the rejected alternatives genuinely considered? Does the
 > Consequences section acknowledge the trade-offs honestly? Is the engine version
 > stamped? Are post-cutoff API risks flagged? Does it link to the GDD requirements
-> it covers? Return APPROVE, CONCERNS [specific gaps], or REJECT [the decision is
+> it covers?
+>
+> **Semantic-change sweep** — if the ADR changes the effective semantics of any
+> existing method (even via a compile-compatible default-param overload), grep ALL
+> call sites including private static helpers in `tests/**` / `Assets/Tests/**`,
+> list each, and require an EditMode/test-suite-green run log before APPROVE.
+> Default-param overloads count as a semantic change, NOT a compat shim — fixture
+> rot is a recurring failure mode (see ADR-0012 / 2026-06-05 post-mortem).
+>
+> Return APPROVE, CONCERNS [specific gaps], or REJECT [the decision is
 > underspecified or makes unsound technical assumptions]."
 
 **Verdicts**: APPROVE / CONCERNS / REJECT
