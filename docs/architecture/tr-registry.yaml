@@ -23,34 +23,2070 @@
 #   NNN = three-digit zero-padded sequence per system, starting at 001
 #
 # STATUS VALUES: active | deprecated | superseded-by: TR-[system]-NNN
+#
+# SYSTEM COUNTS (populated 2026-04-25 by /architecture-review full):
+#   Foundation: card (25) + vehicle (25) + save (25) = 75
+#   Core:       status (19) + combat (30) + scrap (21) + map (26) = 96
+#   Feature:    enemy (30) + loot (28) + encounter (28) = 86
+#   TOTAL: 257 TRs
 
 version: 1
-last_updated: ""
+last_updated: "2026-04-25"
 
-requirements: []
-
-# --- EXAMPLE ENTRIES (remove when first real entries are added) ---
-#
-# - id: TR-combat-001
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Player takes damage from enemies based on attack power minus defence"
-#   created: 2026-03-10
-#   revised: ""
-#   status: active
-#
-# - id: TR-combat-002
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Combo window timing is 0.4 seconds between hits"
-#   created: 2026-03-10
-#   revised: "2026-04-01"
-#   status: active
-#
-# - id: TR-combat-003
-#   system: combat
-#   gdd: design/gdd/combat-system.md
-#   requirement: "Old damage formula using raw stats"
-#   created: 2026-03-10
-#   revised: ""
-#   status: superseded-by: TR-combat-001
+requirements:
+  - id: TR-card-001
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "CardDefinitionSO is the single authority for card metadata including slot, effects, rarity, and cost"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-002
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "CardId format [chassis]_[family]_[sequence] is stable post-ship and used for save/serialization"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-003
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card description strings use templated {param} tokens; tokens are resolved at CardDraft generation time by TokenResolver — CardDraft.RulesText is pre-baked and the presentation layer renders it verbatim (ADR-0006 pre-baking decision)"
+    domain: Data
+    created: 2026-04-25
+    revised: "2026-05-22"
+    status: active
+  - id: TR-card-004
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "CardEffectSO hierarchy defines Effect, Condition, and Effect parameters; effects fire in list order per CardResolutionContext"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-005
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "DamageEffectSO.BypassPlating flag enables subsystem-strike archetype; bypasses non-Frame Plating in Card Combat F-CC1 step 2"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-006
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "RestoreArmorEffectSO applies vehicle-level Armor via IVehicleMutator.AddArmor(int), capped at MaxArmor"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-007
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card families (Precision, Assault, Control, Repair, Maneuver) define mechanical role; family taxonomy consistent across chassis"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-008
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Control family cards must include at least one DamageEffectSO with Amount >= 1 to prevent pure disruption"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-009
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card keywords (Exhaust, Retain, Innate, Ethereal) are enum flags; Ethereal and Retain mutually exclusive"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-010
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Innate keyword caps at 3 cards per deck; cards filtered from offers above cap threshold"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-011
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Starter deck is 10 cards per chassis, fixed list per ChassisDefinitionSO, with family distribution constraints"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-012
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card rarity weights by mastery stored on ChassisMasteryDefinitionSO; must sum to 100 per tier"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-013
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Rarity pool exhaustion fallbacks to next-lower tier (Rare to Uncommon to Common) when copy limits reached"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-014
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Pity counter tracks 8 consecutive combat offers without Rare; 9th offer guaranteed Rare or Scrap compensation"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-015
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Primary-family bias slots Slot 1 from primary pool (Mastery 1-3 only); Slot 2 runs standard F2"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-016
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Copy limits enforced: 3 max per Common/Uncommon, 1 max per Rare; no duplicates in single 2-card offer"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-017
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card states (In Deck, In Hand, In Discard, Exhausted) define location; Discard reshuffles when deck empty"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-018
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card purge at Chopshop costs flat GlobalPurgeCost = 30 Scrap; deck cannot drop below 10 cards"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-019
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Free purge valve rolls 33% per Chopshop visit based on runSeed + nodeIndex; persists mid-visit"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-020
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Damage output formula: BaseDamage + (PositionBonus * PositionConditionMet); range 1-20 EA"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-021
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "ICardRewardGenerator.Generate() interface provides CardDraft[] with resolved tokens, no SO reads by L&R"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-022
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "Card effect resolution reads vehicle state only via IVehicleView; mutates only via IVehicleMutator"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-023
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "EffectConditionSO hierarchy (Position, SlotState, Status) gates effect application per condition evaluation"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-024
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "DrawCardsEffectSO with empty family-filtered deck silently produces nothing, no error or fallback"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-card-025
+    system: card
+    gdd: design/gdd/card-system.md
+    requirement: "SO import validates BaseDamage == DamageEffectSO.Amount and enforces BaseDamage >= 1 on damage cards"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-001
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Vehicle POCO is plain C# with no MonoBehaviour; contains Chassis enum, 4-slot Dict, MaxArmor, CurrentArmor, ActiveStatuses"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-002
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Slot taxonomy identical across 3 chassis: Weapon, Engine, Mobility, Frame (Armor vehicle-level, not slot)"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-003
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "SlotState contains InstalledPart (nullable), Hp (current), MaxHp, DamageState (derived), PlatingStacks, CombatsSurvived"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-004
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "DamageState enum: Empty, Functional, Degraded (50% MaxHp threshold), Offline; derived from Hp not stored"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-005
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Frame Offline = vehicle death; other slots Offline salvageable via Repair with canReviveOffline flag"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-006
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "PartDefinitionSO owns SlotType, CompatibleChassis allowlist, Rarity, GrantedCards[], StatModifiers[], MaxPlating, ArmorContribution"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-007
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "GrantedCards count enforced by rarity: Common 1, Uncommon 2, Rare 3, Legendary 3"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-008
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "InstallPart resets HP to MaxHp, recalculates MaxArmor, adds GrantedCards to deck, fires OnPartInstalled"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-009
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "RemovePart nulls InstalledPart, removes GrantedCards from all deck zones, recalculates MaxArmor, fires OnPartRemoved"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-010
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "MaxArmor is computed sum of InstalledPart.ArmorContribution across all 4 slots; read-only externally"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-011
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "CurrentArmor resets to MaxArmor at combat start, persists across turns, NOT serialized between combats"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-012
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "CombatsSurvived counter increments +1 per win with part installed; resets on install/scrap; consumed by Scrap Economy"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-013
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "IVehicleView provides read-only Chassis, Slots, MaxArmor, CurrentArmor, ActiveStatuses, IsDead, GetStatModifier()"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-014
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "IVehicleMutator exclusive callers: Card Combat (damage/repair), Scrap Economy (install/remove), Status Effects (apply)"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-015
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Frame targets consume CurrentArmor before Hp; non-Frame targets consume PlatingStacks before Hp (F-VP2 fork)"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-016
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "DOT damage bypasses Armor layer entirely; Corrode bonus added before Plating/Armor absorption"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-017
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "State-crossing damage event fires one OnSlotDamageStateChanged for terminal state; side effects apply once"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-018
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "IFuelContainer exposes CurrentFuel, FuelCap, FuelMultiplier; IFuelMutator owns SpendFuel and TryGrantFuel"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-019
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "TryGrantFuel silently drops overflow above FuelCap; returns actual-granted; no resource conversion"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-020
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "IPartCatalog.GetParts() returns empty list (never null) when no assets match filter; L&R handles gap"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-021
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "PreviewInstall() returns VehicleStatePreview without mutating; includes predicted MaxArmor and GrantedCards delta"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-022
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "ChassisDefinitionSO owns SlotMaxHp dict (4 entries), DegradedThreshold%, StarterParts (4), StarterDeck (10), PrimaryFamilies"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-023
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Scout: MaxHp totals 50, Frame=16 (glass-cannon); Assault: MaxHp totals 58, Frame=24 (tank)"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-024
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "Granted cards tracked by part identity; removal targets exact instances added by that part not arbitrary copies"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-vehicle-025
+    system: vehicle
+    gdd: design/gdd/vehicle-and-part-system.md
+    requirement: "StatModifierSO contains TargetStat enum, Operation (Add/Multiply/Override), Value; consuming systems define vocabulary"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-001
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "RunState and MasteryState mutually exclusive via reflection-gated unit test; no type implements both interfaces"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-002
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "RunState captures vehicle loadout, deck, Scrap, map position, per-node flags, run-scoped counters"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-003
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "MasteryState persists chassis mastery XP, level, unlocked content flags across runs"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-004
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "RunState written after node resolution, every 30s idle on map (capped 30 flushes per dwell), on clean quit"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-005
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "MasteryState written once per combat after reward screen closes; non-combat nodes do not trigger write"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-006
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "All writes execute on background Task; only Application.quitting and launch-time recovery run synchronously"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-007
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Atomic write sequence: assemble DTOs, serialize, write .tmp, validate checksum, rotate .bak, File.Move"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-008
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Serialization uses Newtonsoft.Json with link.xml preservation; SHA-256 checksum over canonical envelope"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-009
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Temp files live in temporaryCachePath not saves/; Steam Cloud include-path allowlist never reaches temp"
+    domain: Platform
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-010
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Windows sharing violations retry 5 times exponential backoff (250ms to 4s = 7.75s total)"
+    domain: Platform
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-011
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "N=1 rolling backup: live .sav, single .sav.bak; rotation deletes old .bak, renames .sav, moves .tmp"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-012
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Envelope contains envelope_version (1), system, schema_version, written_at (ISO 8601 UTC), checksum, payload"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-013
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "EA policy: any schema_version mismatch (higher or lower) is incompatible; higher envelope_version rejects"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-014
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Recovery chain (priority): .sav, orphaned .tmp in temporaryCachePath, .sav.bak, full loss handling"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-015
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "RunState full loss shows New Run only; MasteryState full loss shows blocking dialog with recovery options"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-016
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Mid-combat crash resumes at combat start (vehicle, deck, Scrap intact); soft-undo is intentional design"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-017
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Handler save-block gates all writes when NodeEncounter.HandlerActive true; auto-save on transition to false"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-018
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "INodeMapSerializable.IsCommitInProgress defers all writes (including periodic flush) until false"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-019
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Run completion: write MasteryState, delete runstate.sav/.bak (order critical); crash triggers run-end detection"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-020
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Save location: persistentDataPath/saves/ for live+backup; CI verifies ProjectSettings immutable post-EA"
+    domain: Platform
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-021
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "F1: RunState writes = NodeCount + PeriodicFlushes + QuitWrites; typical 16-33 per run"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-022
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "F3: Storage budget 3-6KB runstate.sav + 0.5-1KB masterystate.sav + N=1 backups + transient .tmp"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-023
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "ScrapStateDTO, LootStateDTO, NodeEncounterStateDTO own schema_version; each system defines its own DTO"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-024
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Disk full during write: IOException caught on background thread, logs error, preserves .sav/.bak"
+    domain: Platform
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-save-025
+    system: save
+    gdd: design/gdd/save-persistence.md
+    requirement: "Broken Addressables key on load: Save returns stored keys faithfully; loading systems apply fallback"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-001
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "StatusInstance data shape carries effect type, remaining duration, source entity, and stack count"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-002
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Status state lives on Vehicle POCO as list of StatusInstance records; no MonoBehaviour residency"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-003
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Duration ticks at start of affected vehicle's turn before card play phase; fire-before-tick order"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-004
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Stalled suppresses CardFamily.Precision, CardFamily.Assault, CardFamily.Maneuver only"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-005
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Redirected re-rolls attack target subsystem from full opposing pool at resolution time"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-006
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Corroded adds instance.Stacks bonus damage to attacks targeting that subsystem"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-007
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Burning deals Stacks damage to Frame only at turn start, bypasses Armor entirely via DamageSource.Status"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-008
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Binary statuses (Stalled, Redirected) refresh: RemainingDuration = max(current, incoming)"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-009
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Graduated statuses (Corroded, Burning) extend: Stacks += incoming (capped 3), Duration resets"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-010
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Maximum RemainingDuration cap at 3 turns across all status types"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-011
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Maximum Stacks cap at 3 for graduated types (Corroded, Burning)"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-012
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Corroded tracks per-subsystem instances; multiple Corroded on different slots are independent"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-013
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "StatusInstance.SourceVehicleId field records applying vehicle identity for post-EA card effects"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-014
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "ActiveStatuses list clears entirely at combat end; no persistence between nodes"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-015
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Enrage counter is combat-scope counter incremented after both vehicles complete turns; independent of status pipeline"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-016
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "StatusConditionSO.IsMet(context) enables conditional card effects to query active status state"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-017
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "IVehicleMutator.ApplyDamage(SlotType, int, DamageSource) signature with DamageSource.Status discriminator"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-018
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "Status chips render in UI with icon, duration pips, stack numeral for graduated types"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-status-019
+    system: status
+    gdd: design/gdd/status-effects.md
+    requirement: "ApplyStatusEffectSO import validation rejects Duration=0 and Stacks=0 on graduated types"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-001
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "CombatLoop owns three named sub-models: CombatLoop, SubsystemState, PositionState; no collapse"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-002
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Combat encounter progresses through Setup, PlayerTurn, EnemyTurn, CombatEnded phases"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-003
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Card play pipeline validates position requirements before energy deduction in R3 step 2"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-004
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Enemy intent selected at end of current turn, stored on Vehicle as NextIntent field"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-005
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Damage resolution pipeline applies per-subsystem: target Armor/Plating, then Hp loss"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-006
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Status instances tick in fire-before-tick order at vehicle turn start; expiry immediate"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-007
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Enrage timer increments after both vehicles complete turns; defaults to turn 8"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-008
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Redirected target selection deterministic from runSeed + turn count + redirect index"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-009
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Hand size, energy per turn, card draw count defined in CombatRulesSO ScriptableObject"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-010
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Card effect list mutations immediate; in-flight effects complete before list state refresh"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-011
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Frame part must be present at Setup; missing Frame raises InvalidCombatantException"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-012
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Stat composition float values floor when consumed as int (toward zero conversion)"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-013
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "CombatResult single canonical payload only data Card Combat exposes; run-layer isolation invariant"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-014
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Enrage activates intent pool shift to more aggressive candidates via Enemy System IEnemyBrain"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-015
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "EncounterType Standard or Ambush governs starting PositionState and first-turn actor"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-016
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Enemy intents carry position-gating metadata: Requires*/BonusIf* fields matching card model"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-017
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Enemy AI pool-filter excludes intents blocked by position requirements; reposition fallback injects"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-018
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Reposition intent resolution shifts enemy position without damage, status, or plate effects"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-019
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Position bonus applied to card damage when BonusIfAhead/BonusIfBehind conditions met at resolution"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-020
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "DamageSource enum values Card, Status, Environment route to distinct F-CC1 pipeline paths"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-021
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Armor-as-layer model: Frame absorbs CurrentArmor first, then Frame Hp; non-Frame slots use Plating"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-022
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Status DamageSource bypasses Armor and Plating; F-CC1 DOT exception skips steps 1 and 2"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-023
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Offline subsystem slot cannot receive attack targeting (Card Combat F-CC1 gated on Online state)"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-024
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Combat RNG fully deterministic seeded from runSeed + nodeIndex; reproducible in automated tests"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-025
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Vehicle defeat condition triggered when Frame.DamageState == Offline"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-026
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "OnCurrentArmorChanged event does NOT fire for DOT ticks with DamageSource.Status"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-027
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Ambush EncounterType inverts first-turn actor; enemy resolves intent before player first turn"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-028
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Boss nodes authored with EncounterType.Standard only; ambush bosses rejected as authoring error"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-029
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Combat does not emit event loops; all callbacks fire at discrete defined step points"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-combat-030
+    system: combat
+    gdd: design/gdd/card-combat-system.md
+    requirement: "Turn loop and phase transitions emit event hooks (PlayerTurnStarted, EnemyTurnStarted, CombatEnded)"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-001
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Six named transaction verbs: Install, Repair, Purge, Purchase, Scrap, Convert"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-002
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "IScrapEconomy facade single-threaded main-thread only; no combat code references"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-003
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "CurrentScrap persisted as plain int on POCO run-state object, not MonoBehaviour field"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-004
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Transaction state machine: Proposed, Validated, Committed, Logged; atomicity contract enforced"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-005
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "TransactionInFlight guard prevents reentrancy; OnTransactionCompleted fires after flag cleared"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-006
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "No mid-combat Scrap transactions; counter remains visible read-only during combat"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-007
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Deck floor at 10 cards; Purge blocked below this threshold regardless of free-valve"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-008
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Frame slot may not be left Empty by Scrap verb; Install auto-scraps existing Frame atomically"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-009
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "All conversion lossy both directions; UI displays exact output value before confirmation"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-010
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Every Chopshop offers Install, Repair, Purge, Scrap, Convert; Merchants offer Purchase, Convert only"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-011
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Free-valve 33 percent per Chopshop visit seeded from runSeed XOR nodeIndex; not re-rolled on reload"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-012
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Integer rounding against player: Ceiling on costs, Floor on refunds and conversion outputs"
+    domain: Performance
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-013
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "GlobalPurgeCost flat 30; free-valve applies to first Purge only per Chopshop visit"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-014
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Install cost from formula D.2 scaled by rarity multiplier; auto-scrap existing part cost-free"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-015
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Repair cost full restoration only via IVehicleMutator.Repair(slot, hp, canReviveOffline: true)"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-016
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "ScrapRefund formula incorporates tenure decay; veteran parts refund less per-combat-survived"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-017
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "ScrapTransaction log: TransactionId, Verb, ScrapDelta, ScrapAfter, Context, SequenceNumber"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-018
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Save point always after Logged phase; ScrapStateDTO serialized with CurrentScrap, TransactionLog, RunSeed"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-019
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Convert verbs bridge Scrap and Fuel only; both sides logged independently (AC-NM55 separation)"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-020
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "TryInstall validates slot compatibility and chassis compatibility; detects override collisions"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-scrap-021
+    system: scrap
+    gdd: design/gdd/scrap-economy.md
+    requirement: "Pity award fires at 40 Scrap when Rare pool empty; framed as wasteland salvage payment"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-001
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Beacon web generated seeded from RunSeed via System.Random; immutable after generation"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-002
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Run path three biomes between start and Haven; 18-22 beacons per biome distributed across 5 vertical strips"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-003
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Minimum beacon separation 80px canvas distance; layout retries if violated"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-004
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Forward connections 1-3 per beacon within 45-degree cone; lateral within same strip permitted"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-005
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Graph generation guarantees forward path to Haven from every non-Haven beacon"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-006
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Beacon types: Combat, EliteCombat, Merchant, Chopshop, Event, Rest, Haven; distribution owned by Node Encounter"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-007
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "EncounterType Standard or Ambush per-Combat/EliteCombat at graph-gen; boss nodes require Standard only"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-008
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "StormFrontX authoritative scalar; visual noise band cosmetic-only, never read by gameplay"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-009
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Storm advance triggered by CombatCommitCounter reaching ChassisStormCadence; Scout 3, Assault 2, Truck 1"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-010
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Non-combat beacons do NOT increment CombatCommitCounter; no storm advance from Merchant/Chopshop/Event/Rest"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-011
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Fuel cost formula D-NM1: FuelCostBase times ChassisMultiplier plus LateralSurcharge"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-012
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Chassis Fuel multipliers: Scout 0.8x, Assault 1.0x, Truck 1.3x; owned by V&P chassis stat block"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-013
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Insufficient Fuel beacon not selectable; all Reachable unaffordable triggers run-end (E-3 fuel starvation)"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-014
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Commit pipeline atomic six steps: Validate, Query cost, Check affordability, Deduct Fuel, Transition states, Node Encounter hand-off"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-015
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "IsValidCommit predicate: Current beacon, not self, edge exists, forward-only (B.X greater A.X) or lateral-adjacent, no route constraint block, sufficient Fuel"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-016
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Beacon state machine: Unvisited, Reachable, Current, Visited, Consumed; transitions one-way per rules"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-017
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Reachable set computed not stored; reconstructed from Current + graph edges + Fuel on save-load"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-018
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "RC-M1 route constraint: Mobility Offline blocks lateral-adjacent beacons, forward-only selectable"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-019
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "RC-E1 route constraint: Engine Offline adds +1 Fuel surcharge per commit"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-020
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "RC-F1 route constraint: Frame Degraded/Offline tilts Event beacon outcomes toward hostile (+15 percent weight) invisibly"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-021
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "RC-W1 route constraint: Weapon Offline displays soft warning overlay on EliteCombat beacons, selectable"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-022
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Node Encounter hand-off captures beacon, runSeed, Frame state, economy at commit moment; immutable during encounter"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-023
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Save point only between commits; Node Map exposes IsCommitInProgress bool; saves forbidden mid-pipeline"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-024
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Storm never advances during combat; advance trigger fires exclusively from Node Encounter reward-screen callback"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-025
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "NodeMapDto serialization: RunSeed, StormFrontX, CombatCommitCounter, CurrentBeaconId, BeaconStates, BiomeIndex"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-map-026
+    system: map
+    gdd: design/gdd/node-map.md
+    requirement: "Graph deterministic given RunSeed; two runs same seed produce byte-identical positions, edges, types"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-001
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "Enemy is structurally a Vehicle reusing identical VehicleState POCO, four slots, and IVehicleView/IVehicleMutator surface with no privileged enemy code path"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-002
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnemyDefinitionSO ScriptableObject is the single authoring authority for stat block, subsystem loadout, BrainRuleset reference, RetargetPolicy, and ArchetypeTags"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-003
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnemyDefinitionSO carries SilhouetteClass enum, VisualFamily enum, and ArchetypeFamily enum as three independent fields; SO validator rejects null on either gameplay or art axis"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-004
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnemyIntent struct carries IntentType, TargetType, SlotId, PredictedDamage, PredictedStatusStacks, StatusRef, ArmorGain, HealAmount, PositionRequirement, PositionBonus, TargetPosition fields"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-005
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "NextIntent MUST be non-null on enemy VehicleState when player turn begins; null triggers InvalidCombatStateException — Combat Loop enforces telegraph contract as hard invariant"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-006
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "IEnemyBrain.SelectNextIntent and OnInvalidTarget are pure functions of CombatContext; brain instances must hold no mutable decision state between turns"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-007
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "All brain randomness draws exclusively from CombatRng (System.Random with explicit run seed); UnityEngine.Random, Time.time, Time.frameCount forbidden in any brain code path"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-008
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "BrainRuleset candidate list is pool-filtered for IntentPositionRequirement before weighted draw; on empty post-filter pool Combat Loop injects synthetic RepositionIntent"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-009
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "OnInvalidTarget fires exactly once per enemy turn for both Offline TargetSlot and resolution-time position-invalidation paths; second call is forbidden"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-010
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnrageActive boolean lives on runtime combat record (not VehicleState); set permanently when TurnCount >= EffectiveEnrageTurn and never cleared by status or card"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-011
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "Enemies apply and receive status effects through identical ApplyStatusEffectSO pipeline used for player; zero enemy-side duplicate code permitted"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-012
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "All enemy-produced effects route through IVehicleMutator; brain resolves intent by constructing equivalent effect parameters identically to player card resolution"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-013
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "IEnemyPool.GetEnemyFor(biomeIndex, beaconType, runSeed) performs seeded weighted draw from BiomePoolSO assets; no runtime authorship decisions"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-014
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "On combat end Enemy System emits OnCombatEnded event carrying CombatEndedPayload record with ArchetypeId, ArchetypeTags, DifficultyScore, BiomeIndex, WasElite, EnrageReached, TurnsToKill, PlayerVehicleCritical"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-015
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "All Enemy System events use C# Action delegates per IEnemyEventSource interface; UnityEvent is forbidden"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-016
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "IEnemyBrain implementations are plain C# classes (no MonoBehaviour); all decision state must live in CombatContext, not in the brain instance"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-017
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "PredictedDamage is computed once at brain call time and frozen on EnemyIntent; resolved damage may only diverge upward via EnrageBonus added at Resolving"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-018
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnrageBonus formula is additive (EffectiveEnrageBaseBonus + max(0, TurnCount - EffectiveEnrageTurn)); deprecated multiplicative form forbidden"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-019
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "Weighted draw computes FinalWeight as BaseWeight times product of true-condition multipliers; entries with FinalWeight ≤ 0 are filtered before normalization"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-020
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "Seeded draw procedure draws CombatRng.NextDouble() and selects first candidate where CDF[i] > r, sorted in stable authoring order for determinism"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-021
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "NoOpIntent sentinel has fixed field values (Type=Utility, Target=None, SlotId=None, all numeric payloads zero, StatusRef null) so HUD requires no null-checking"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-022
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "RetargetPolicy supports FixedSlot, PriorityList, and ContextualRule policy types; PriorityList must include Frame as terminal entry per SO validator"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-023
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "TurnCount increments at SelectingNextIntent entry including Stalled_Skipping turns; Enrage threshold check happens immediately after increment"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-024
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "HP ≤ 0 check fires after every damage event from any source in every state; transitions current state directly to EndOfCombat without entering downstream states"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-025
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "OnCombatEnded event emits exactly once per combat; OnIntentTelegraphed, OnIntentRetargeted, OnEnrageActivated emit at corresponding state transitions"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-026
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "BiomePoolSO ScriptableObjects are stored under assets/data/enemies/pools/ as content authored separately from Enemy System GDD"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-027
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "SO import validator rejects EnemyDefinitionSO with null BrainRuleset, zero BaseWeight candidates only, missing Frame in PriorityList, or null DamageEffectSO on Damage candidates"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-028
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "IVehicleMutator rejects damage on Offline target slots and null effect references with logged error and no mutation rather than throwing exception"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-029
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "PositionBonus must be 0 when PositionRequirement is None or Requires*; only meaningful on BonusIf* intents — SO validator enforces at import"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-enemy-030
+    system: enemy
+    gdd: design/gdd/enemy-system.md
+    requirement: "EnrageIntentCandidates secondary candidate list replaces base list when EnrageActive is true and the list is non-empty; D.3 weighted draw applies identically on the replacement list"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-001
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "ILootRewardSystem exposes single public entry point GenerateRewards(RewardContext context, int seed) returning RewardOffer[]; system is stateless beyond persisted LootStateDTO"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-002
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "GenerateRewards is pure with respect to (context, seed); System.Random(seed) is the only RNG source and UnityEngine.Random is forbidden"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-003
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "RewardContext readonly struct carries BiomeIndex, BeaconType, ArchetypeFamily, DifficultyScore, ChassisId, CardMastery, NodeIndex, and mutable LootStateDTO ref"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-004
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "RewardOffer is abstract record with sealed subtypes ScrapGrantOffer, FuelGrantOffer, CardOfferPayload, PartDropPayload"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-005
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "RewardTableSO ScriptableObjects are indexed on three-axis key (BiomeIndex, BeaconType, ArchetypeFamily); MVP set is approximately 60 SOs in assets/data/loot/tables/"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-006
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Seed is derived as RunSeed XOR nodeIndex by caller and passed to GenerateRewards; var rng = new System.Random(seed) is created at step 2"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-007
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Table lookup falls back from (Biome, Beacon, Family) primary to (Biome, Beacon, Wildcard) before emitting floor ScrapGrantOffer with content warning"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-008
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "EffectiveWeight is max(0, BaseWeight + sum of matching modifier deltas); modifiers apply additively when condition evaluates true on RewardContext"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-009
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "TruckRewardMultiplier (1.25 floor) applies to FinalScrap pre-GrantScrap when context.Chassis == Truck; banker's rounding (C# default), clamp >= 1"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-010
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "On empty-Rare-pool pity signal from Card System, L&R substitutes ScrapGrantOffer(PityScrapAward=40) for the CardOfferPayload"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-011
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Card System delegation routes through ICardRewardGenerator.Generate(chassis, mastery, rng); L&R never touches rarity weights, pity counter writes, or slot-1 bias"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-012
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "PartDropCooldown[droppedSlot] is set to PartDropCooldownNodes (3) on drop; all cooldowns decrement by 1 once per GenerateRewards call regardless of drop outcome"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-013
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "RewardOffer[] is emitted in canonical order [Scrap, Fuel?, Card, Part?]; Post-Combat Flow UI consumes the bundle but does not own ordering"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-014
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "LootStateDTO carries RarePityCounter (read-only to L&R, Card System owns writes) and Dictionary<SlotId,int> PartDropCooldown (L&R owns writes)"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-015
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "LootStateDTO is owned by Save & Persistence's passive-serializer; L&R reads on every GenerateRewards call and writes updated DTO at step 9"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-016
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "FuelGrant entries are gated to beacon ∈ {Treasure, Event} only via SO authoring rule AR-LR3; Combat/Elite/Boss tables must contain no Fuel entries"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-017
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Boss-skip rule substitutes ScrapGrantOffer(BossFlatScrap=30) for CardOfferPayload when beacon == Boss; pity counter is not modified"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-018
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "PartDropPayload emits offer only — never executes mutation; V&P owns InstallPart mutator and Post-Combat Flow UI orchestrates player selection"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-019
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "GenerateRewards is contractually guaranteed to return a non-empty RewardOffer[] on every successful call; floor-Scrap fallback is universal tail of all degenerate paths"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-020
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "SerializableCondition implementations must be pure functions of RewardContext; reads from UnityEngine.Random, DateTime, Time.time, PlayerPrefs, MonoBehaviour state are forbidden"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-021
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "PartRarityWeight constraint Common + Uncommon + Rare == 100 enforced by LootRewardConfig SO validator at import time"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-022
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "On null LootStateDTO, L&R constructs default DTO (RarePityCounter=0, all PartDropCooldown=0) inline rather than throwing; warning logged"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-023
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Save persist failure at step 9 must be caught at the persistence boundary; rewards are still delivered and in-memory LootStateDTO retains updated values for session"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-024
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "ICardRewardGenerator.Generate null/empty return triggers ScrapGrantOffer(PityScrapAward=40) substitution and dropped CardOfferPayload; RarePityCounter not incremented by L&R"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-025
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "IPartCatalog.GetParts(slot, rarity) empty result triggers ScrapGrantOffer(BiomeBaseScrap[biome]/2) substitution; PartDropCooldown[slot] not set"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-026
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Stale SlotId keys in deserialized PartDropCooldown are skipped (left in dictionary, not pruned by L&R); Save & Persistence owns schema migration"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-027
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "L&R emits telemetry events (OfferGenerated, ScrapGranted, CardOfferDelegated, PartDropOffered, PityFallbackFired, ContentWarning, PersistFailed) at step 10 of GenerateRewards"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-loot-028
+    system: loot
+    gdd: design/gdd/loot-reward.md
+    requirement: "Confirm action input must be consumed on detection frame; UI disables confirm button minimum 1 rendered frame (≥16ms at 60fps) after commit to prevent double-activation"
+    domain: Platform
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-001
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "INodeEncounterHandler.Begin signature accepts BeaconData snapshot, runSeed, FrameSubsystemState, IScrapEconomy verb interface, and Action<BeaconOutcome> callback"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-002
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Handler seeds rng exactly once at Begin entry as new System.Random(runSeed XOR beacon.NodeIndex), stored as instance field, never recreated or re-seeded"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-003
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Handler invokes callback exactly once per Begin regardless of chaining depth; _hasResolved guard throws in dev builds on second invocation"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-004
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "BeaconOutcome record carries BeaconType, PayloadType enum, WasCombatRewardClosed bool, ScrapDelta, FuelDelta, CardId[] CardsOffered, nullable PartId, RunTerminated bool"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-005
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "BeaconOutcome is a plain C# record/struct; no MonoBehaviour, no Unity lifecycle dependencies"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-006
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Handlers apply economy effects exclusively via named Scrap Economy verbs (TryPurchase, TryConvert*, TryInstall, TryRepair, TryPurge, TryGrantScrap, TryGrantFuel); never read or write Scrap/Fuel directly"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-007
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Handlers never mutate Node Map graph state (storm, reachable set, visited); they receive BeaconData snapshot and return BeaconOutcome only"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-008
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "WasCombatRewardClosed = true can only be set during HandlerActive.Combat_AwaitingRewardClose exit; no other path may modify the flag"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-009
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Combat/EliteCombat handlers dispatch CombatSetup with EncounterType = beacon.EncounterType unchanged; NE never overrides or defaults the field"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-010
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Boss nodes (isBoss == true) MUST carry EncounterType.Standard; graph-gen validator rejects EncounterType.Ambush on any isBoss node"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-011
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Event handler rolls payload at commit time using rng = new System.Random(runSeed XOR nodeIndex); Frame state is sampled at the same moment, never re-read"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-012
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Event weights are stored as integers out of 100; W_base = {Treasure:35, Ambush:20, Windfall:30, Convert:15} with tilt deltas {−5, +15, −10, 0} applied for Degraded or Offline Frame"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-013
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Weighted payload sampling uses cumulative CDF over fixed payloadOrder [Treasure, Ambush, Windfall, Convert]; sorting or shuffling enum order breaks determinism"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-014
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Event-Ambush payload chains directly into Combat handler with CombatSetup.EncounterType = Ambush; Event handler does not build a separate BeaconOutcome"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-015
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Windfall seeded coin flip uses rng.Next(2); Scrap branch grants flat WindfallScrapGrant=12, Fuel branch draws rng.Next(FuelGrantRange.Min, FuelGrantRange.Max + 1)"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-016
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "EventConvert offers a single one-direction conversion at EventConvertFavorableRate=3; one direction per node prevents round-trip arbitrage"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-017
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "All formulas use integer arithmetic for determinism; no floating-point sampling and no rounding ambiguity in weighted payload selection"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-018
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Rest handler restores one subsystem fully via TryRepair(subsystem, Rest[node:N], freeRepair: true) — extends Scrap Economy verb with zero-cost path"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-019
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "On L&R returning empty RewardOffer[] for Merchant/Chopshop/Event-Treasure, NE applies salvage fallback granting BiomeBaseScrap[biome] via TryGrantScrap"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-020
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Save System refuses serialization while NE state != Idle; auto-save fires exclusively when handler returns to Idle after BeaconOutcome processing"
+    domain: Persistence
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-021
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Frame state is sampled once at Begin() and stored on the handler; mid-encounter Frame changes never retroactively re-roll or re-weight Event outcomes"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-022
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Unregistered BeaconType throws NodeEncounterDispatchException in dev builds; production logs fatal error and emits zero-delta BeaconOutcome with PayloadType=None"
+    domain: Engine
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-023
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Watchdog timeout (default 30s non-Combat, 10min Combat) catches stalled handlers and force-invokes callback with zero-delta BeaconOutcome to avoid run lock"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-024
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "TryGrantFuel tops up to FuelCap on overflow; BeaconOutcome.FuelDelta reports actual applied amount (rolled minus overflow), not nominal roll"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-025
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "EventConvert verb routing uses TryConvertScrapToFuel/TryConvertFuelToScrap with rate override parameter scoped to node context; no new verbs introduced"
+    domain: Communication
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-026
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Per-biome distribution tables (Combat/EliteCombat/Merchant/Chopshop/Event/Rest/Haven percentages) are authored by NE and consumed read-only by Node Map at graph-generation time"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-027
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Structural invariants enforced at graph-gen: ≥1 Chopshop reachable per biome, EliteCombat 1–3 per biome, ≥2 Rest within 2-strip Strip-5 window, branching width ≥3 per strip"
+    domain: Data
+    created: 2026-04-25
+    revised: ""
+    status: active
+  - id: TR-encounter-028
+    system: encounter
+    gdd: design/gdd/node-encounter.md
+    requirement: "Same (runSeed, nodeIndex, frameState) at commit always produces identical BeaconOutcome across platforms; reload of pre-commit auto-save reproduces same beacon resolution"
+    domain: Threading
+    created: 2026-04-25
+    revised: ""
+    status: active

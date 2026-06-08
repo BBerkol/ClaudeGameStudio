@@ -30,7 +30,7 @@
 #   Superseded entries:     Grep pattern="status: superseded"
 
 version: 1
-last_updated: ""
+last_updated: "2026-04-27"  # ADR-0005 + ADR-0006 flipped Proposed → Accepted
 
 # ─── STATE OWNERSHIP ─────────────────────────────────────────────────────────
 # Who is the authoritative owner of each piece of shared game state.
@@ -43,7 +43,66 @@ last_updated: ""
 # interface: how other systems access this state (read-only property, method call,
 #   signal, shared resource, etc.) — this is the contract other ADRs depend on.
 
-state_ownership: []
+state_ownership:
+  - state: vehicle_slot_damage_state
+    status: active
+    owner_system: vehicle-part-system
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    interface: "IVehicleView.GetDamageState(SlotType) → DamageState (read-only enum, 4 values: Empty/Functional/Degraded/Offline — ADR-0005)"
+    write_access: IVehicleMutator-only  # Combat (ApplyDamage(slot,amount,DamageSource), AddArmor, AddPlating, ApplyStatus, Repair, TickStatuses), Status Effects (ApplyDamage DOT, ApplyStatus, RemoveStatus, TickStatuses), Economy (InstallPart, RemovePart, Repair), Loot (InstallPart), Enemy AI (ApplyStatus)
+    referenced_by:
+      - docs/architecture/adr-0001-visual-vehicle-part-system.md
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-19
+    revised: 2026-04-25  # ADR-0005: 4-value DamageState (added Empty); ApplyDamage gains DamageSource; expanded write whitelist
+
+  - state: vehicle_part_catalog
+    status: active
+    owner_system: vehicle-part-system
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    interface: "IPartCatalog.GetParts(SlotType, PartRarity, ChassisType) → IReadOnlyList<IPartData>  — stateless query, no internal RNG (ADR-0003 discipline: caller owns the System.Random)"
+    write_access: editor-authoring-only  # PartDefinitionSO assets are authored in Unity editor; runtime catalog is read-only after Addressables load
+    referenced_by:
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-25
+    revised: ""
+
+  - state: card_pool_catalog
+    status: active
+    owner_system: card-system
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    interface: "ICardCatalog.GetCards(ChassisType, int mastery) → IReadOnlyList<ICardData>  — stateless query, no internal RNG (ADR-0003 discipline: caller owns the System.Random). Sibling IMasteryWeights.GetWeights(ChassisType, int mastery) for slot-bias / family-mix lookups."
+    write_access: editor-authoring-only  # CardDefinitionSO + ChassisMasteryDefinitionSO assets authored in Unity editor; runtime catalogs are read-only after Addressables load (two siblings: AddressablesCardCatalog + AddressablesMasteryCatalog)
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+    added: 2026-04-25
+    revised: ""
+
+  - state: card_deck_state
+    status: active
+    owner_system: combat-system
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    interface: "CardSystemDTO { string[] Deck; string[] Discard; string[] Exhausted; Dictionary<string,int> CardCopyCounts }  — accessed only at run-save / run-load boundaries; live combat reads/writes go through Combat's in-memory CardZoneState. Note: RarePityCounter is NOT in this DTO (lives in LootStateDTO per Decision §'Pity counter authority' — L&R writes & persists)."
+    write_access: combat-system-only  # Combat owns Deck/Discard/Exhausted transitions per Card System GDD F1; reward acceptance flow appends new CardId via combat-system facade, not direct dictionary write
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+      - docs/architecture/adr-0004-save-persistence.md
+    added: 2026-04-25
+    revised: ""
+
+  - state: rare_pity_counter
+    status: active
+    owner_system: loot-reward-system
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    interface: "Persisted in LootStateDTO.RarePityCounter (int). Read by Card System only via ICardRewardGenerator.Generate(...) parameter — Card System NEVER mutates. L&R writes per Loot & Reward GDD §C.3 step 9 (increment if no Rare drawn, reset to 0 if any Rare appeared)."
+    write_access: loot-reward-system-only  # Decision §'Pity counter authority': writer-owns-DTO-field per ADR-0004 Alternative 4 rejection; Card System is read-only consumer
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+      - design/gdd/loot-reward.md       # GDD F.1 + §C.3 step 9 + AC-LR15..LR18, AC-LR34, AC-LR42
+      - design/gdd/card-system.md       # GDD §F3 + ICardRewardGenerator.Generate doc comment (read-only)
+      - design/gdd/scrap-economy.md     # GDD §EC-SE7 + §H.4 (PityScrapAward consumer, ownership note)
+    added: 2026-04-25
+    revised: ""
 
 # Example:
 #
@@ -71,7 +130,82 @@ state_ownership: []
 #
 # pattern options: signal | direct_call | event_bus | shared_resource | rpc | none
 
-interfaces: []
+interfaces:
+  - contract: vehicle_state_access
+    status: active
+    pattern: direct_call
+    producer: vehicle-part-system
+    consumers:
+      - combat-system          # reads IVehicleView for subsystem state; writes via IVehicleMutator.ApplyDamage(slot,amount,DamageSource), AddArmor, AddPlating, ApplyStatus, Repair, TickStatuses
+      - status-effects-system  # writes via IVehicleMutator.ApplyDamage (DOT, source=Status), ApplyStatus, RemoveStatus, TickStatuses (ADR-0005 / pending ADR-0007)
+      - enemy-ai               # writes via IVehicleMutator.ApplyStatus on the target vehicle reference (ADR-0005 / pending ADR-0011)
+      - economy-system         # reads IVehicleView for part values; writes via IVehicleMutator.InstallPart/RemovePart/Repair
+      - loot-system            # writes via IVehicleMutator.InstallPart on part drop
+      - combat-hud             # reads IVehicleView for display; subscribes to OnSlotDamageStateChanged event
+      - part-inspect-ui        # reads IVehicleView for part display
+      - post-combat-ui         # reads IVehicleView for install/scrap flow
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    signal_signature: "event Action<SlotType, DamageState, DamageState> OnSlotDamageStateChanged  // (slot, from, to) — ADR-0005"
+    write_signatures:
+      - "ApplyDamage(SlotType slot, int amount, DamageSource source)  // ADR-0005; DamageSource ∈ {Card, Status, Environment}"
+      - "Repair(SlotType slot, int hpRestored, bool canReviveOffline)"
+      - "AddPlating(SlotType slot, int stacks)"
+      - "AddArmor(int amount)"
+      - "ApplyStatus(StatusType type, int duration, int stacks, SlotType? targetSlot)"
+      - "RemoveStatus(StatusType type, SlotType? targetSlot)  // ADR-0005"
+      - "TickStatuses()  // end-of-turn; DOT internally routes through ApplyDamage(source=Status)"
+      - "InstallPart(SlotType slot, IPartData part)"
+      - "RemovePart(SlotType slot)"
+    referenced_by:
+      - docs/architecture/adr-0001-visual-vehicle-part-system.md
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-19
+    revised: 2026-04-25  # ADR-0005: 3-arg event signature (slot, from, to); ApplyDamage gains DamageSource; RemoveStatus + TickStatuses added; expanded consumer set
+
+  - contract: part_catalog_lookup
+    status: active
+    pattern: direct_call
+    producer: vehicle-part-system
+    consumers:
+      - loot-system            # GetParts(slot, rarity, chassis) for reward generation; caller owns RNG per ADR-0003
+      - economy-system         # GetParts(slot, rarity, chassis) for chopshop inventory; PreviewInstall for compare-panel UI
+      - node-map               # PreviewInstall for upcoming-encounter compare hints (ADR-0009)
+      - part-inspect-ui        # GetById(partId) for inventory display
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    method_signatures:
+      - "IReadOnlyList<IPartData> GetParts(SlotType slot, PartRarity rarity, ChassisType chassis)  // stateless"
+      - "IPartData GetById(string partId)"
+      - "VehicleStatePreview PreviewInstall(IVehicleView vehicle, SlotType slot, IPartData candidate)  // pure read; does not mutate"
+    forbidden:
+      - "IPartCatalog must not own a System.Random or any RNG state — selection happens in the caller per ADR-0003"
+      - "PartDefinitionSO references must not leak across the WastelandRun.Vehicle assembly boundary; runtime types are IPartData/IChassisData (POCO interfaces)"
+    referenced_by:
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-25
+    revised: ""
+
+  - contract: card_reward_generation
+    status: active
+    pattern: direct_call
+    producer: card-system
+    consumers:
+      - loot-reward-system          # Loot & Reward §C.3 step 8 calls Generate(...) per CardOffer; passes pity counter as input, writes counter post-draw
+      - node-encounter-handlers     # event nodes that grant card offers (Node Encounter GDD undesigned 📌 routes through same Generate signature)
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    method_signatures:
+      - "CardDraft[] ICardRewardGenerator.Generate(ChassisType chassis, int mastery, int rarePityCounter, int drawCount, IReadOnlyList<string> currentDeckCardIds, System.Random rng)  // canonical 6-arg signature"
+    contract_invariants:
+      - "Returns Length == drawCount (success) OR Length == 0 (empty Rare-pool pity signal). NEVER partial."
+      - "rarePityCounter is INPUT only — Card System reads to gate Rare draws but is forbidden from mutating. Writer is loot-reward-system per state_ownership.rare_pity_counter."
+      - "rng is the caller-owned System.Random per ADR-0003 — Card System must NOT instantiate UnityEngine.Random or new System.Random() internally."
+      - "currentDeckCardIds drives copy-limit filtering; empty list = no copies installed yet."
+      - "Empty[] return at counter==8 + empty Rare pool triggers Loot & Reward's PityScrapAward(40) substitution per Loot & Reward GDD §C.3 step 7."
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+      - design/gdd/card-system.md     # ICardRewardGenerator definition (authoritative)
+      - design/gdd/loot-reward.md     # AC-LR15, AC-LR42 (call site)
+    added: 2026-04-25
+    revised: ""
 
 # Example:
 #
@@ -131,7 +265,88 @@ performance_budgets: []
 # Register an API decision when the choice is non-obvious and other ADRs might
 # make a different choice for the same purpose without knowing this was decided.
 
-api_decisions: []
+api_decisions:
+  - purpose: vehicle_part_sprite_rendering
+    status: active
+    api: "URP Sprite Lit Shader Graph + MaterialPropertyBlock (_DamageAmount float, _DamageOverlay Texture2D)"
+    not: "SpriteRenderer.sprite swap per damage state; separate SpriteRenderer overlay GameObjects"
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    reason: "Sprite swap requires 3× art assets (120-180 sprites); layered GameObjects add unnecessary draw calls. MPB with shared overlays keeps art budget to ~60 base sprites."
+    referenced_by:
+      - docs/architecture/adr-0001-visual-vehicle-part-system.md
+    added: 2026-04-19
+    revised: ""
+
+  - purpose: vehicle_part_asset_loading
+    status: active
+    api: "Addressables LoadAssetAsync<Sprite> / LoadAssetsAsync<ScriptableObject> with try/catch + handle.IsValid() finally guard"
+    not: "Resources.Load; direct sprite/SO references on ScriptableObjects; Addressables without exception handling"
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    reason: "Unity 6.2+ Addressables throws on failure (not null). handle.IsValid() guard prevents double-exception if load throws before handle assignment."
+    referenced_by:
+      - docs/architecture/adr-0001-visual-vehicle-part-system.md
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md  # AddressablesPartCatalog applies the same try/catch + handle.IsValid pattern when loading the "part-definitions" label
+      - docs/architecture/adr-0006-card-system-data-authoring.md  # AddressablesCardCatalog ("card-definitions") + AddressablesMasteryCatalog ("chassis-mastery-definitions") siblings apply the same try/catch + handle.IsValid pattern
+    added: 2026-04-19
+    revised: 2026-04-25  # ADR-0005 + ADR-0006: extended scope to SO catalog loading; same exception-handling contract
+
+  - purpose: il2cpp_link_xml_for_so_interface_loading
+    status: active
+    api: "link.xml entries with `preserve=\"all\"` for ScriptableObject types referenced only via interface (e.g., PartDefinitionSO when runtime references go through IPartData)"
+    not: "Reflection-only retention; relying on Addressables registration to keep types alive; UnityEngine.Scripting.Preserve attribute alone (does not preserve serialized field metadata reliably under IL2CPP managed-stripping=High)"
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    reason: "When concrete SO types are referenced only through interface handles, IL2CPP's static analyzer marks them unreachable and strips them. Stripped types fail to instantiate via Addressables in standalone — never reproduces in editor. link.xml is the only reliable preservation mechanism for SO + serialized field metadata."
+    referenced_by:
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+      - docs/architecture/adr-0006-card-system-data-authoring.md  # CardDefinitionSO + 8 *EffectSO subclasses + 3 *ConditionSO subclasses + ChassisMasteryDefinitionSO + EffectConditionProjection static helper all require link.xml preservation (interface-only references at runtime via ICardData/ICardEffect/ICardEffectCondition/IMasteryWeights)
+    added: 2026-04-25
+    revised: 2026-04-25  # ADR-0006: extended pattern to card-system SO hierarchy; static helper class also requires preservation
+
+  - purpose: vehicle_save_dto_distributed_schema
+    status: active
+    api: "VehicleStateDTO sealed record with `public const string SystemId = \"vehicle-state\"` + `public const int SchemaVersion = 1`, registered via the ADR-0004 distributed schema registry"
+    not: "Centralized SystemId enum or table; runtime-discovered SystemIds via reflection; SchemaVersion stored as instance field; DTOs holding ScriptableObject references (must use string PartId)"
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    reason: "ADR-0004 mandates SystemId + SchemaVersion as compile-time constants on each per-system DTO; uniqueness is CI-enforced by grep. CurrentArmor is intentionally excluded from the DTO (V&P GDD line 34: resets per combat); ActiveStatuses live within combat scope only."
+    referenced_by:
+      - docs/architecture/adr-0004-save-persistence.md
+      - docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-25
+    revised: ""
+
+  - purpose: card_addressables_label
+    status: active
+    api: "Two sibling Addressables labels — 'card-definitions' (CardDefinitionSO assets) and 'chassis-mastery-definitions' (ChassisMasteryDefinitionSO assets) — both gated in build profile by extending ADR-0005's EditorBuildPreprocessor to assert each label is included before build proceeds"
+    not: "Single combined label; per-chassis labels (e.g., 'cards-scout', 'cards-truck'); Resources.Load; runtime-discovered labels via reflection; loading either catalog without the EditorBuildPreprocessor build-time gate"
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    reason: "Two siblings (not nested): AddressablesCardCatalog and AddressablesMasteryCatalog have independent lifecycles and partition by different keys (ChassisPool vs ChassisType). Constructor injection composes them at bootstrap (`new RewardDrawAlgorithm(cardCatalog, masteryCatalog, tokens)`) per Decision §'Sibling catalog architecture' — keeps each catalog's responsibility narrow, matches ADR-0003 DI discipline. Per-chassis labels rejected: cross-chassis cards exist (Universal pool), so label-per-chassis would either duplicate assets or require a meta-label."
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+    added: 2026-04-25
+    revised: ""
+
+  - purpose: card_token_resolution_timing
+    status: active
+    api: "TokenResolver.Resolve(rawTemplate, context) called at draft-generation time (inside ICardRewardGenerator.Generate, before CardDraft is returned). Tokens supported: {damage}, {damage.N}, {bonus}, {heal}, {plating}, {armor}, {draws}, {energy}, {stacks}, {duration}, {cost}"
+    not: "Pre-baking resolved strings into CardDefinitionSO.RulesText at editor time; resolving tokens at HUD-render time; UnityEngine.UI.Text token-substitution helpers; resolving tokens inside CardEffectSO.ToRuntime() projection (CardDraft is the binding boundary, not ICardEffect)"
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    reason: "Token values depend on runtime context (current Plating stacks, Mastery level, conditional bonus eligibility) — pre-baking would bind the wrong values. Resolving at draft time means CardDraft.RulesText is final at hand-off to L&R, no downstream consumer needs to re-resolve. Resolving in ToRuntime would tie projection to runtime context the projection doesn't have access to."
+    referenced_by:
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+    added: 2026-04-25
+    revised: ""
+
+  - purpose: card_save_dto_distributed_schema
+    status: active
+    api: "CardSystemDTO sealed record with `public const string SystemId = \"card-system\"` + `public const int SchemaVersion = 1`, registered via the ADR-0004 distributed schema registry. Fields: Deck, Discard, Exhausted (string[] of CardIds) + CardCopyCounts (Dictionary<string,int>). RarePityCounter is INTENTIONALLY ABSENT — owned by LootStateDTO per state_ownership.rare_pity_counter."
+    not: "Centralized SystemId enum or table; runtime-discovered SystemIds via reflection; SchemaVersion stored as instance field; DTO holding ScriptableObject references (must use string CardId); persisting RarePityCounter in CardSystemDTO (writer-owns-DTO-field per ADR-0004 Alternative 4 rejection — L&R writes pity, L&R persists pity)"
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    reason: "ADR-0004 mandates SystemId + SchemaVersion as compile-time constants on each per-system DTO; uniqueness is CI-enforced by grep. CardSystemDTO is the third instance of this pattern (after VehicleStateDTO + LootStateDTO). Pity counter exclusion resolves the TD-ADR B1 contradiction with ADR-0004 cleanly: each DTO is owned by exactly one writer."
+    referenced_by:
+      - docs/architecture/adr-0004-save-persistence.md
+      - docs/architecture/adr-0006-card-system-data-authoring.md
+    added: 2026-04-25
+    revised: ""
 
 # Example:
 #
@@ -157,7 +372,65 @@ api_decisions: []
 # Register a pattern when an ADR explicitly bans it AND other ADRs might
 # unknowingly use it (i.e., it's a tempting but wrong approach for this project).
 
-forbidden_patterns: []
+forbidden_patterns:
+  - pattern: mpb_overlay_atlas_packing
+    status: active
+    description: "Damage overlay textures (spr_dmg_overlay_*.png) must never be packed into a Sprite Atlas. MaterialPropertyBlock.SetTexture() uses absolute UVs — atlas UV remapping does not apply, causing incorrect overlay rendering."
+    why: "Sprite Atlas UV remapping is not applied to textures set via MaterialPropertyBlock. If overlay textures are atlas-packed, they will render with wrong UVs on all vehicle slot renderers."
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    added: 2026-04-19
+
+  - pattern: per_frame_mpb_update
+    status: active
+    description: "MaterialPropertyBlock.Set*() calls for vehicle slot renderers must not be called directly in event handlers or Update(). Use a dirty flag — set on state-change event, flush in LateUpdate() at most once per frame per slot."
+    why: "Multiple damage events in a single frame (e.g., AoE hit affecting multiple slots) would each trigger a GPU state change. Dirty flag batches all updates to a single flush per frame."
+    adr: docs/architecture/adr-0001-visual-vehicle-part-system.md
+    added: 2026-04-19
+
+  - pattern: vehicle_mutation_outside_whitelist
+    status: active
+    description: "IVehicleMutator method calls (InstallPart / RemovePart / ApplyDamage / AddArmor / AddPlating / ApplyStatus / RemoveStatus / TickStatuses / Repair) outside the registered consumer whitelist (combat-system, status-effects-system, economy-system, loot-system, enemy-ai) are forbidden. Adding a new caller requires updating `interfaces.vehicle_state_access.consumers` in this registry."
+    why: "The IVehicleView / IVehicleMutator split is enforced by code review, not by language — both interfaces are implemented by the same concrete `Vehicle` class. Unvetted callers bypass invariants such as MaxArmor recompute on InstallPart, granted-card cleanup on RemovePart, and the F-VP2 plating→armor→Hp damage order. Each whitelisted consumer was vetted against these invariants; new ones must be too."
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-25
+
+  - pattern: cast_vehicle_view_to_mutator
+    status: active
+    description: "Code must never cast `IVehicleView` to `IVehicleMutator` to obtain mutation rights. Mutation requires an explicit `IVehicleMutator` constructor parameter / DI registration; consumers that should not mutate must take only `IVehicleView`."
+    why: "The concrete `Vehicle` class implements both interfaces, so the cast technically succeeds and silently grants write access. This bypasses the read-only contract that ADR-0001 locks for visual subscribers (combat-hud, part-inspect-ui, post-combat-ui) and breaks the auditability of the consumer whitelist registered in `interfaces.vehicle_state_access`."
+    adr: docs/architecture/adr-0005-vehicle-poco-part-catalog.md
+    added: 2026-04-25
+
+  - pattern: card_system_writes_pity_counter
+    status: active
+    description: "Code in WastelandRun.Cards (or any Card System component) must never write to `RarePityCounter` — neither as field assignment, nor via `LootStateDTO` mutation, nor via any indirect facade. Card System receives the counter as an `int rarePityCounter` parameter to `ICardRewardGenerator.Generate(...)` and is permitted to read only. All writes happen in Loot & Reward per Loot & Reward GDD §C.3 step 9 (increment if no Rare drawn, reset to 0 if any Rare appeared)."
+    why: "Resolves the ADR-0006 TD-ADR B1 contradiction with ADR-0004's writer-owns-DTO-field principle (Alternative 4 explicitly rejected mixed ownership). Two-writer ownership of a single field produces races at save boundary, makes save-load round-trip non-deterministic, and breaks ADR-0003 reproducibility (replaying a seeded run could see different pity progression depending on flush order). Single-writer (L&R) keeps the entire pity-counter lifecycle inside one system that already owns LootStateDTO."
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    enforcement: "CI grep — fail build if any file under Assets/Scripts/Cards/ or Assets/Scripts/Gameplay/Cards/ contains `RarePityCounter\\s*[+\\-*/]?=` or `RarePityCounter\\s*\\+\\+` or `\\.RarePityCounter\\s*=`. Allowed reads stay; only writes fail the regex."
+    added: 2026-04-25
+
+  - pattern: pre_bake_card_description_tokens
+    status: active
+    description: "CardDefinitionSO.RulesText must contain raw token templates (e.g., `Deal {damage} damage. Bonus: {bonus} if behind.`) — never resolved strings. TokenResolver runs at draft generation time inside ICardRewardGenerator.Generate, after the chassis/mastery/state context is known. Editor tooling that resolves tokens for SO author preview is permitted ONLY if the resolved string is discarded and never written back to RulesText."
+    why: "Token values depend on runtime context (current Plating stacks, Mastery level, conditional bonus eligibility, chassis-specific damage scaling). Pre-baking at editor time would lock incorrect values into every CardDraft offered. Pre-baking also defeats deterministic save-load: a card's RulesText would diverge between players who installed different parts but received the same CardId, breaking save portability and reproduction reports."
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    enforcement: "Validation Criterion 7 (per ADR-0006): unit test loads any CardDefinitionSO via Addressables and asserts RulesText contains at least one `{` character; conversely asserts CardDraft.RulesText (post-Generate) contains zero `{` characters."
+    added: 2026-04-25
+
+  - pattern: unity_random_in_card_draws
+    status: active
+    description: "Code in WastelandRun.Cards (and the entire ICardRewardGenerator implementation chain) must not call `UnityEngine.Random.*`, `new System.Random()` (no-arg ctor uses time-seed), `DateTime.Now`, `DateTime.UtcNow`, `Stopwatch.GetTimestamp`, or `Guid.NewGuid()` for any selection or weighting decision. The caller-provided `System.Random rng` parameter is the only permitted RNG source — extends ADR-0003's discipline into the Card System namespace."
+    why: "Card draws are seeded from `RunSeed ^ stepIndex` per ADR-0003. Any non-deterministic call inside the draw pipeline breaks save-load reproducibility, breaks crash-recovery determinism, breaks balance-tuning replays (designers run thousands of draws against fixed seeds to validate distribution), and breaks the deterministic 100k-draw SHA-256 unit test specified in ADR-0006 Migration step 3."
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    enforcement: "CI grep extends ADR-0003's existing forbidden-token sweep to add Assets/Scripts/Cards/** and Assets/Scripts/Gameplay/Cards/** to the path list (same regex set: `UnityEngine\\.Random`, `new System\\.Random\\(\\)`, `DateTime\\.(Now|UtcNow)`, `Stopwatch\\.GetTimestamp`, `Guid\\.NewGuid`)."
+    added: 2026-04-25
+
+  - pattern: polymorphic_serialize_reference_for_effects
+    status: active
+    description: "CardEffectSO and EffectConditionSO hierarchies must use sealed-subclass-per-type with `[CreateAssetMenu]` (e.g., `DamageEffectSO`, `ApplyStatusEffectSO`, `DrawEffectSO` … each a separate ScriptableObject asset). Do NOT use `[SerializeReference]` to inline a polymorphic effect-list inside CardDefinitionSO; do NOT use a single MegaEffectSO with a `EffectKind` enum + branched fields."
+    why: "[SerializeReference] requires runtime type names in YAML, which couple save data to assembly-qualified class names — refactoring (rename, namespace move) silently invalidates every saved CardDefinitionSO referencing the old name, with no editor warning. Sealed-subclass-per-asset means each effect is an independent .asset file with stable GUID — refactor-safe, diff-friendly in Git, and drag-and-drop authoring for designers. Mega-effect with enum branching is the WastelandRun anti-pattern equivalent of the 'God object' — every new effect type forces touching one shared file."
+    adr: docs/architecture/adr-0006-card-system-data-authoring.md
+    added: 2026-04-25
 
 # Example:
 #
