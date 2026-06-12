@@ -4,8 +4,8 @@
 |-------|-------|
 | **Engine Version** | Unity 6.3 LTS |
 | **Release Date** | December 2025 |
-| **Project Pinned** | 2026-02-13 |
-| **Last Docs Verified** | 2026-02-13 |
+| **Project Pinned** | 2026-04-18 |
+| **Last Docs Verified** | 2026-04-18 |
 | **LLM Knowledge Cutoff** | May 2025 |
 
 ## Knowledge Gap Warning
@@ -55,3 +55,16 @@ before suggesting Unity API calls.
 - Migration guide: https://docs.unity3d.com/6000.0/Documentation/Manual/upgrade-guides.html
 - Unity 6 support: https://unity.com/releases/unity-6/support
 - C# API reference: https://docs.unity3d.com/6000.0/Documentation/ScriptReference/index.html
+- Unity 6.3 upgrade guide: https://docs.unity3d.com/6000.3/Documentation/Manual/UpgradeGuideUnity63.html
+- What's new in Unity 6.3: https://docs.unity3d.com/6000.3/Documentation/Manual/WhatsNewUnity63.html
+
+## Critical Flags for Wasteland Run (2D Card Roguelike, URP, C#)
+
+Verified 2026-04-18 against official Unity 6.3 upgrade guide:
+
+1. **URP Compatibility Mode REMOVED in 6.3** — Must use Render Graph API (`RecordRenderGraph`). Old `ScriptableRenderPass.Execute` patterns will NOT compile. See `breaking-changes.md`.
+2. **`[SerializeField]` fields-only in 6.3** — Cannot apply to properties/methods. Use `[field: SerializeField]` for auto-implemented properties.
+3. **`Object.FindObjectsOfType` → `Object.FindObjectsByType<T>(FindObjectsSortMode.None)`** — Old API deprecated since 6.0; `None` sort is significantly faster.
+4. **UI Toolkit USS parser stricter in 6.3** — Invalid USS now produces errors. Audit all `.uss` card and HUD stylesheets.
+5. **Box2D v3 in 6.3** — New `UnityEngine.LowLevelPhysics2D` namespace. 2D physics behavior may differ subtly.
+6. **New Input System is default** — Legacy `Input` class deprecated. All input code must use `UnityEngine.InputSystem`.

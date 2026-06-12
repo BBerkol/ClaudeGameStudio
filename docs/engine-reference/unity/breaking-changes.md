@@ -1,6 +1,6 @@
 # Unity 6.3 LTS — Breaking Changes
 
-**Last verified:** 2026-02-13
+**Last verified:** 2026-04-18
 
 This document tracks breaking API changes and behavioral differences between Unity 2022 LTS
 (likely in model training) and Unity 6.3 LTS (current version). Organized by risk level.
@@ -131,6 +131,46 @@ UGUI still works but UI Toolkit is recommended for new projects.
 
 ### iOS
 - **Unity 6.0+**: Minimum deployment target raised to iOS 13
+
+---
+
+## Unity 6.3-Specific Breaking Changes (Verified 2026-04-18)
+
+### SerializeField Fields-Only (HIGH RISK)
+**Versions:** Unity 6.3+
+
+`[SerializeField]` now causes compile errors when applied to properties, methods, or types:
+
+```csharp
+// ❌ Compile error in Unity 6.3:
+[SerializeField] public float MoveSpeed { get; private set; }
+
+// ✅ Correct for Unity 6.3+:
+[field: SerializeField] public float MoveSpeed { get; private set; }
+```
+
+---
+
+### USS Parser Stricter (MEDIUM RISK for card/HUD UI)
+**Versions:** Unity 6.3+
+
+UI Toolkit USS parser now flags invalid selectors, syntax errors, and unsupported CSS that was previously silently ignored. All `.uss` stylesheets must be clean. Configure behavior via **Unsupported Selector Action** in the importer Inspector.
+
+---
+
+### Accessibility API Type Changes (LOW RISK)
+**Versions:** Unity 6.3+
+
+- `AccessibilityRole` changed from flags enum to standard enum — remove bitwise operations
+- Type changed from `int` to `byte` — recompile precompiled assemblies
+- `AccessibilityNode.selected` → `AccessibilityNode.invoked`
+
+---
+
+### Box2D v3 Physics (LOW RISK for this project)
+**Versions:** Unity 6.3+
+
+Unity 6.3 ships Box2D v3 with multi-threading. New low-level API: `UnityEngine.LowLevelPhysics2D`. Subtle behavior differences possible; test physics-sensitive systems.
 
 ---
 
