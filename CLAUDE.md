@@ -5,11 +5,11 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Technology Stack
 
-- **Engine**: [CHOOSE: Godot 4 / Unity / Unreal Engine 5]
-- **Language**: [CHOOSE: GDScript / C# / C++ / Blueprint]
+- **Engine**: Unity 6.3 LTS
+- **Language**: C#
 - **Version Control**: Git with trunk-based development
-- **Build System**: [SPECIFY after choosing engine]
-- **Asset Pipeline**: [SPECIFY after choosing engine]
+- **Build System**: Unity Build Pipeline
+- **Asset Pipeline**: Unity Asset Import Pipeline + Addressables
 
 > **Note**: Engine-specialist agents exist for Godot, Unity, and Unreal with
 > dedicated sub-specialists. Use the set matching your engine.
@@ -20,7 +20,7 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Engine Version Reference
 
-@docs/engine-reference/godot/VERSION.md
+@docs/engine-reference/unity/VERSION.md
 
 ## Technical Preferences
 
@@ -41,6 +41,25 @@ Every task follows: **Question -> Options -> Decision -> Draft -> Approval**
 - No commits without user instruction
 
 See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
+
+## Capture-Before-Destroy + Technical Director Review (ENFORCED BY HOOK)
+
+Before any destructive edit to authored content or any system refactor /
+new system ≥50 lines, Claude MUST:
+
+1. Spawn `technical-director` agent with current state, proposed change,
+   files at risk, and the final-game picture the change serves.
+2. Write a capture file at `production/polish-captures/<YYYY-MM-DD>-<system>.md`
+   enumerating every authored value being destroyed and pasting the TD verdict
+   under a `## Technical Director Review` heading.
+3. Get user approval on the capture before editing.
+
+This is enforced by `.claude/hooks/capture-before-destroy.sh`. The hook blocks
+Edit/Write/MultiEdit on protected paths (prefabs, scenes, author scripts,
+designer-tuned SOs, GDDs, ADRs, system-shape carriers) when destructive
+thresholds are crossed and no matching capture file exists for today.
+
+Full protocol: `production/polish-captures/README.md`.
 
 > **First session?** If the project has no engine configured and no game concept,
 > run `/start` to begin the guided onboarding flow.

@@ -100,9 +100,13 @@ Note: in `solo` mode, director spawns (CD-PHASE-GATE, TD-PHASE-GATE, PR-PHASE-GA
 - [ ] At least 3 Architecture Decision Records in `docs/architecture/` covering
       Foundation-layer systems (scene management, event architecture, save/load)
 - [ ] Engine reference docs exist in `docs/engine-reference/[engine]/`
-- [ ] Test framework initialized: `tests/unit/` and `tests/integration/` directories exist
-- [ ] CI/CD test workflow exists at `.github/workflows/tests.yml` (or equivalent)
-- [ ] At least one example test file exists to confirm the framework is functional
+- [ ] Test framework initialized — `docs/test-strategy.md` documents framework choice, test
+      location, run commands, and (for two-repo projects) which repo holds the test code
+- [ ] At least one example test file exists in the documented test location to confirm
+      the framework is functional
+- [ ] CI workflow either exists at `.github/workflows/tests.yml` (single-repo) or in the
+      code repo's `.github/workflows/` (two-repo), OR is consciously deferred with a trigger
+      condition recorded in `docs/test-strategy.md` (e.g., "add at sprint 1")
 - [ ] Master architecture document exists at `docs/architecture/architecture.md`
 - [ ] Architecture traceability index exists at `docs/architecture/architecture-traceability.md`
 - [ ] `/architecture-review` has been run (a review report file exists in `docs/architecture/`)

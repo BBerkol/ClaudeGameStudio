@@ -64,6 +64,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/capture-before-destroy.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
