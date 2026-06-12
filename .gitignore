@@ -11,8 +11,10 @@ Desktop.ini
 
 # === Claude Code Local ===
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 CLAUDE.local.md
 production/session-logs/
+production/session-state/active.md
 
 # === Internal Planning (not for public) ===
 
@@ -93,6 +95,7 @@ Saved/
 *.temp
 *.cache
 *.log
+*.stackdump
 __pycache__/
 *.pyc
 node_modules/
