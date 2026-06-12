@@ -37,7 +37,7 @@
 #   Each entry: name, status, source, referenced_by[], attributes{}, added, revised
 
 version: 1
-last_updated: ""
+last_updated: 2026-05-18
 
 # ─── ENTITIES ────────────────────────────────────────────────────────────────
 # Named game-world objects: enemies, NPCs, characters, factions, bosses.
@@ -139,7 +139,887 @@ formulas: []
 #
 # Required fields: name, status, source, referenced_by, value, unit, added
 
-constants: []
+constants:
+  - name: TruckRewardMultiplier
+    status: active
+    source: design/gdd/node-map.md
+    referenced_by:
+      - design/gdd/node-map.md
+      - design/gdd/scrap-economy.md
+      - design/gdd/loot-reward.md
+    value: 1.25
+    unit: multiplier (floor)
+    notes: "Minimum reward-value uplift on Combat/Elite beacon tables when ChassisId == Truck. CD Condition 4 (Sandstorm Chase Pacing verdict) floor. Loot & Reward C.4.1 applies as terminal multiplier: FinalScrap = Round((BaseScrap + DSBonus) × TruckRewardMultiplier). L&R never sets below 1.25x floor. Tested by node-map AC-NM54 + loot-reward AC-LR5. Scrap Economy D.9 + AC-SE36 depend on L&R applying this before GrantScrap."
+    added: 2026-04-21
+    revised: 2026-04-23
+
+  - name: FuelBurnMultiplier.Scout
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/node-map.md
+      - design/gdd/scrap-economy.md
+      # pending: retrofit into V&P chassis stat block
+    value: 0.8
+    unit: multiplier
+    notes: "Chassis fuel-burn multiplier for Scout. Declared provisionally in Node Map F.1; V&P retrofit pending to move authoritative ownership into the chassis stat block."
+    added: 2026-04-21
+    revised: ""
+
+  - name: FuelBurnMultiplier.Assault
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/node-map.md
+      - design/gdd/scrap-economy.md
+    value: 1.0
+    unit: multiplier
+    notes: "Chassis fuel-burn multiplier for Assault. Baseline (1.0). Declared provisionally in Node Map F.1; V&P retrofit pending."
+    added: 2026-04-21
+    revised: ""
+
+  - name: FuelBurnMultiplier.Truck
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/node-map.md
+      - design/gdd/scrap-economy.md
+    value: 1.3
+    unit: multiplier
+    notes: "Chassis fuel-burn multiplier for Heavy Truck. Declared provisionally in Node Map F.1; V&P retrofit pending. Paired with TruckRewardMultiplier (value compensation per CD Condition 4)."
+    added: 2026-04-21
+    revised: ""
+
+  - name: HostileTiltDelta
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-map.md
+      - design/gdd/node-encounter.md
+    value: "{Treasure: -5, Ambush: +15, Windfall: -10, Convert: 0}"
+    unit: asymmetric integer vector (weight deltas, out of 100)
+    notes: "RC-F1 route constraint. Applied to Event payload weights when Frame subsystem is Degraded/Offline at beacon commit time. Canonical representation per Node Encounter D.2 is the 4-axis asymmetric vector {Treasure: -5, Ambush: +15, Windfall: -10, Convert: 0} (integer, out of 100) — NOT a scalar. Base weights {35/20/30/15} transform to tilted {30/35/20/15}. Sum of deltas = 0 (redistributes weight, does not inflate total). Legacy scalar `0.15` shorthand refers to the Ambush-axis headline magnitude only. Hidden from player in numeric form; surfaced via 3-channel hover/focus tell per Node Encounter H.3/I.4 (rust-shimmer + sub-200Hz audio +3dB + gamepad haptic motorLevel 0.15) — no tooltip/tint/numeric readout permitted."
+    added: 2026-04-21
+    revised: 2026-04-23
+
+  - name: GlobalPurgeCost
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (retrofit — remove per-card PurgeCost field, collapse to this flat constant)
+    value: 30
+    unit: Scrap
+    notes: "Flat Scrap cost to purge any card at Chopshop. Replaces per-card PurgeCost field on CardDefinitionSO (Card System retrofit pending — see K.4 / F.2a). Sits between one Repair (~15–25) and one Rare install (~50–65). OQ7 parity rule: MerchantPrice may not equal this value for any card — SO import validator enforces."
+    added: 2026-04-22
+    revised: ""
+
+  - name: StartingScrap.Scout
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/save-persistence.md (retrofit — initial ScrapStateDTO population on run start)
+    value: 60
+    unit: Scrap
+    notes: "Scout run-start Scrap. Highest of the three chassis — Scout has lighter install costs and a slower reward curve. Covers one Common install at the first Chopshop without running dry."
+    added: 2026-04-22
+    revised: ""
+
+  - name: StartingScrap.Assault
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/save-persistence.md (retrofit — initial ScrapStateDTO population on run start)
+    value: 50
+    unit: Scrap
+    notes: "Assault run-start Scrap. Baseline. Can afford one Uncommon install at first Chopshop or two Commons."
+    added: 2026-04-22
+    revised: ""
+
+  - name: StartingScrap.Truck
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/save-persistence.md (retrofit — initial ScrapStateDTO population on run start)
+    value: 40
+    unit: Scrap
+    notes: "Truck run-start Scrap. Lowest — TruckRewardMultiplier (≥1.25) compensates on every combat reward downstream. Intentional 'Truck suffers early, thrives late' identity."
+    added: 2026-04-22
+    revised: ""
+
+  - name: PityScrapAward
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      - design/gdd/card-system.md
+      - design/gdd/loot-reward.md
+    value: 40
+    unit: Scrap
+    notes: "Flat Scrap award when Card System's pity counter fires on an empty Rare pool. Sits strictly between GlobalPurgeCost (30) and InstallBaseCost.Rare (50) — salvage the wasteland owes the player when the Rare pool has nothing to give. Parity rule: GlobalPurgeCost < PityScrapAward < InstallBaseCost.Rare (breaks Section B framing if violated). Loot & Reward C.4.3 substitutes this via ScrapGrantOffer(PityScrapAward) when Card System's ICardRewardGenerator returns empty on pity-fire; L&R never directly decrements the pity counter (Card-System-owned state)."
+    added: 2026-04-22
+    revised: 2026-04-23
+
+  - name: FreeValveProbability
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      - design/gdd/card-system.md
+    value: 0.33
+    unit: probability (0.0–1.0)
+    notes: "Chance per Chopshop visit that the first Purge is free. Seeded via new System.Random(runSeed ^ nodeIndex).NextDouble() < FreeValveProbability — deterministic across reloads. AC-SE12 asserts 0.33 ± 0.03 over 10,000 seeded rolls."
+    added: 2026-04-22
+    revised: ""
+
+  - name: InstallBaseCost.Common
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (referenced for cost display on Common install prompts)
+    value: 10
+    unit: Scrap
+    notes: "Base Scrap cost to install a Common card via Chopshop. Subject to scaling InstallCost(rarity, installedCount) = Ceiling(InstallBaseCost × (1 + installedCount × k)) — see D.2. Rarity ratios currently 1:2.5:5 (Common:Uncommon:Rare)."
+    added: 2026-04-22
+    revised: ""
+
+  - name: InstallBaseCost.Uncommon
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (referenced for cost display on Uncommon install prompts)
+    value: 25
+    unit: Scrap
+    notes: "Base Scrap cost to install an Uncommon card via Chopshop. Subject to InstallCost scaling. Uncommon installs should feel like mid-run highlights, not filler."
+    added: 2026-04-22
+    revised: ""
+
+  - name: InstallBaseCost.Rare
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (referenced for cost display on Rare install prompts)
+    value: 50
+    unit: Scrap
+    notes: "Base Scrap cost to install a Rare card via Chopshop. Subject to InstallCost scaling. Rare install should be a decisive run moment. Parity rule: must stay above PityScrapAward (40) — see Section B framing."
+    added: 2026-04-22
+    revised: ""
+
+  - name: ScrapRefundRate
+    status: active
+    source: design/gdd/vehicle-and-part-mechanics.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-mechanics.md
+      - design/gdd/scrap-economy.md
+    value: 0.40
+    unit: multiplier (float)
+    min: 0.20
+    max: 0.99
+    notes: "Fraction of InstallBaseCost returned on standalone scrap. Authority: vehicle-and-part-mechanics.md F-VPM2. Static formula: ScrapRefund(rarity) = max(1, Floor(InstallBaseCost[rarity] × ScrapRefundRate)) → Common=4, Uncommon=10, Rare=20 at default. Hard constraint: must be < 1.0 — at ≥ 1.0 the 'removal is always a loss' invariant breaks silently. Lower bound: must be ≥ 0.20 — at < 0.20 Rare mid-run pivots become economically unrecoverable (74 Scrap in, 1 Scrap out), eliminating Pillar 4 agency without runtime signal. Owning SO must enforce OnValidate clamp [0.20, 0.99]; reject and log error at both bounds. Tuning safe range: 0.20–0.50."
+    added: 2026-05-20
+    revised: "2026-05-21"
+
+  - name: BaseMerchantCost.Common
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (Merchant node uses MerchantPrice(rarity) for card pricing)
+    value: 15
+    unit: Scrap
+    notes: "Flat Scrap price of a Common card at a Merchant node (no scaling). Higher than InstallBaseCost.Common because Merchant purchase is a pure discretionary buy vs. a reactive Chopshop install."
+    added: 2026-04-22
+    revised: ""
+
+  - name: BaseMerchantCost.Uncommon
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (Merchant node uses MerchantPrice(rarity) for card pricing)
+    value: 40
+    unit: Scrap
+    notes: "Flat Scrap price of an Uncommon card at a Merchant node (no scaling). Mid-tier Merchant purchases should displace one installed part's cost."
+    added: 2026-04-22
+    revised: ""
+
+  - name: BaseMerchantCost.Rare
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/card-system.md (Merchant node uses MerchantPrice(rarity) for card pricing)
+    value: 75
+    unit: Scrap
+    notes: "Flat Scrap price of a Rare card at a Merchant node (no scaling). OQ7 parity rule: may not equal GlobalPurgeCost (30) for any card — SO import validator enforces; holds trivially at defaults."
+    added: 2026-04-22
+    revised: ""
+
+  - name: ScrapPerFuelRate
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      - design/gdd/node-map.md
+      - design/gdd/node-encounter.md
+    value: 4
+    unit: Scrap per 1 Fuel
+    notes: "Conversion rate Scrap → Fuel at Chopshop/Merchant. FuelOut = Floor(ScrapIn / ScrapPerFuelRate). AC-NM55 separation contract: conversion MUST route through named Convert verb (TryConvertScrapToFuel) — no direct cross-domain mutation."
+    added: 2026-04-22
+    revised: ""
+
+  - name: FuelPerScrapRate
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      - design/gdd/node-map.md
+      - design/gdd/node-encounter.md
+    value: 4
+    unit: Fuel per 1 Scrap
+    notes: "Conversion rate Fuel → Scrap at Chopshop/Merchant. ScrapOut = Floor(FuelIn / FuelPerScrapRate). AC-NM55 separation contract: conversion MUST route through named Convert verb (TryConvertFuelToScrap). Currently symmetric with ScrapPerFuelRate — intentional; asymmetry is a tuning knob if player gaming becomes an issue."
+    added: 2026-04-22
+    revised: ""
+
+  - name: RarityRepairRate.Common
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/vehicle-and-part-system.md (retrofit — Repair flow consumes this via Scrap Economy)
+    value: 2.0
+    unit: Scrap per HP damage
+    notes: "Scrap cost to repair 1 HP of damage on a Common-rarity part at Chopshop. RepairCost(currentDamage, rarity) = Ceiling(currentDamage × RarityRepairRate[rarity]). Raise → Commons cheap to lose + expensive to keep; lower → attrition forgiven."
+    added: 2026-04-22
+    revised: ""
+
+  - name: RarityRepairRate.Uncommon
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/vehicle-and-part-system.md (retrofit — Repair flow consumes this via Scrap Economy)
+    value: 2.5
+    unit: Scrap per HP damage
+    notes: "Scrap cost to repair 1 HP of damage on an Uncommon-rarity part. Raise → mid-tier triage pressure spikes; lower → Uncommons are tank-like."
+    added: 2026-04-22
+    revised: ""
+
+  - name: RarityRepairRate.Rare
+    status: active
+    source: design/gdd/scrap-economy.md
+    referenced_by:
+      - design/gdd/scrap-economy.md
+      # pending: design/gdd/vehicle-and-part-system.md (retrofit — Repair flow consumes this via Scrap Economy)
+    value: 3.5
+    unit: Scrap per HP damage
+    notes: "Scrap cost to repair 1 HP of damage on a Rare-rarity part. Raise → Rare-Offline is catastrophic; lower → Rare parts weather damage freely. Intentionally the steepest rate — Rare parts are decisive, their loss should hurt."
+    added: 2026-04-22
+    revised: ""
+
+  # ─── Enemy System constants (Section G.1 on CombatConfig) ───
+
+  - name: DefaultEnrageTurn
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/card-combat-system.md
+    value: 8
+    unit: turns
+    notes: "Global default turn on which Enrage activates for any archetype that does not override `EnrageTurn`. Per-archetype override in `EnemyDefinitionSO.EnrageTurn` (safe range 4–14). Below 5 = frantic; above 12 = combat runs can stall. Stalled_Skipping does NOT pause the counter — turns always advance (R5)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: DefaultEnrageBaseBonus
+    status: active
+    source: design/gdd/card-combat-system.md
+    referenced_by:
+      - design/gdd/card-combat-system.md
+      - design/gdd/enemy-system.md
+    value: 2
+    unit: flat damage (integer)
+    notes: "Additive-escalation Enrage model (CD arbitration 2026-04-24, BLOCKER-1). Formula owned by Card Combat F-CC: `EnrageBonus = DefaultEnrageBaseBonus + max(0, turn - EffectiveEnrageTurn)`. Applied at D.2 (Enemy System) as `FinalIntentDamage = BaseIntentDamage + EnrageBonus`. Per-archetype override: `EnemyDefinitionSO.EnrageBaseBonusOverride` (nullable int). Rationale: countable telegraph satisfies Pillar 3 (Read to Win) — player can read next-turn escalation directly off intent number. Replaces the deprecated multiplicative scalar `DefaultEnrageDamageMultiplier = 1.5` (removed in same arbitration). HUD-Promise invariant: Enrage activation mid-telegraph remains the ONLY permitted divergence where ResolvedDamage > PredictedDamage."
+    added: 2026-04-24
+    revised: ""
+    replaces: DefaultEnrageDamageMultiplier
+
+  - name: BiomeHPScalar.Biome1
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned — authoritative biome identity)
+    value: 1.0
+    unit: multiplier
+    notes: "Sand Flats (Biome 1) HP scalar. Baseline anchor — every other biome scalar is defined relative to this. Safe range 0.8–1.2."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeHPScalar.Biome2
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 1.4
+    unit: multiplier
+    notes: "Junk Mesa (Biome 2) HP scalar. Mid-biome step-up. Safe range 1.2–1.6. Below 1.2 = no felt progression; above 1.6 = un-upgraded vehicles wall out."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeHPScalar.Biome3
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 1.9
+    unit: multiplier
+    notes: "Haven Approach (Biome 3) HP scalar. Late-biome pressure. Safe range 1.6–2.2. Below 1.6 = Haven approach trivial; above 2.2 = requires optimal build."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeDamageScalar.Biome1
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 1.0
+    unit: multiplier
+    notes: "Sand Flats (Biome 1) damage scalar. Baseline anchor. Safe range 0.8–1.2."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeDamageScalar.Biome2
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 1.3
+    unit: multiplier
+    notes: "Junk Mesa (Biome 2) damage scalar. Mid-biome damage step. Safe range 1.1–1.5."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeDamageScalar.Biome3
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 1.6
+    unit: multiplier
+    notes: "Haven Approach (Biome 3) damage scalar. Safe range 1.4–1.8. 1.8 = a single unblocked hit threatens a Frame slot."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EliteHPScalar
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/node-encounter.md
+    value: 1.75
+    unit: multiplier
+    notes: "Elite-variant HP multiplier applied on top of biome scaling (D.1). Safe range 1.3–2.0. Higher = longer elite fights (more decision points, more attrition)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EliteDamageScalar
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/node-encounter.md
+    value: 1.4
+    unit: multiplier
+    notes: "Elite-variant damage multiplier applied on top of biome scaling (D.2). Safe range 1.2–1.6. Intentionally lower than EliteHPScalar — elite fights should be long, not explosive."
+    added: 2026-04-23
+    revised: ""
+
+  - name: DifficultyScoreWeight.HP
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/loot-reward.md
+    value: 0.30
+    unit: weight (0.0–1.0)
+    notes: "HP contribution to DifficultyScore (D.5). Safe range 0.20–0.40. Weight constraint: DifficultyScoreWeight.{HP + DPT + IntentCount + EnrageSeverity} MUST sum to 1.0 (ε=0.0001) — enforced by CombatConfig validator (AC-ES27). L&R reads DifficultyScore via RewardContext.DifficultyScore (0.0–1.0) to compute DSBonus piecewise (C.4.1)."
+    added: 2026-04-23
+    revised: 2026-04-23
+
+  - name: DifficultyScoreWeight.DPT
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/loot-reward.md
+    value: 0.40
+    unit: weight (0.0–1.0)
+    notes: "Damage-per-turn contribution to DifficultyScore (D.5). Safe range 0.30–0.50. Highest weight because damage directly threatens the player. Weight-sum constraint applies. L&R consumes DifficultyScore indirectly — never the individual weights."
+    added: 2026-04-23
+    revised: 2026-04-23
+
+  - name: DifficultyScoreWeight.IntentCount
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/loot-reward.md
+    value: 0.15
+    unit: weight (0.0–1.0)
+    notes: "Archetype candidate-list size contribution to DifficultyScore (complexity proxy, D.5). Safe range 0.10–0.20. Weight-sum constraint applies. L&R consumes DifficultyScore indirectly."
+    added: 2026-04-23
+    revised: 2026-04-23
+
+  - name: DifficultyScoreWeight.EnrageSeverity
+    status: active
+    source: design/gdd/enemy-system.md
+    referenced_by:
+      - design/gdd/enemy-system.md
+      - design/gdd/loot-reward.md
+    value: 0.15
+    unit: weight (0.0–1.0)
+    notes: "Post-Enrage damage premium contribution to DifficultyScore (D.5). Safe range 0.10–0.20. Weight-sum constraint applies. L&R consumes DifficultyScore indirectly."
+    added: 2026-04-23
+    revised: 2026-04-23
+
+  - name: EnrageTelegraphLeadTurns
+    status: active
+    source: design/gdd/card-combat-system.md
+    referenced_by:
+      - design/gdd/card-combat-system.md
+      - design/gdd/enemy-system.md
+      # pending: design/gdd/combat-hud-ux.md (UX spec owns art/VFX of the warning indicator)
+    value: 2
+    unit: turns
+    notes: "How many turns before `EnrageTurn` the Enrage warning indicator begins showing. At default tuning (EnrageTurn=8, Lead=2), warning fires at turn 6. Safe range 0–5 — 0 = surprise Enrage (Pillar 3 violation). Owned by Card Combat R7 (`CombatRulesSO`); Enemy System I.2 binds `TurnsUntilEnrage = EffectiveEnrageTurn - TurnCount` for HUD display."
+    added: 2026-04-23
+    revised: ""
+
+  # ─── Loot & Reward constants (Section G.1 on LootRewardConfig) ───
+
+  - name: BiomeBaseScrap.Biome1
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+      # pending: design/gdd/biome.md (undesigned — authoritative biome identity will cross-check floor anchors)
+    value: 15
+    unit: Scrap
+    notes: "Sand Flats (Biome 1) floor Scrap — the BaseScrap anchor before DSBonus and chassis multipliers (L&R C.4.1). Safe range 10–25. Below 10 = early rewards feel hollow; above 25 = early Chopshop economy inflates. Scout/Assault/Truck start economies are calibrated against this anchor. Also used by EC-LR1/EC-LR2/EC-LR5/EC-LR7 fallback paths as `BiomeBaseScrap[biome]/2` half-floor substitute."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeBaseScrap.Biome2
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 28
+    unit: Scrap
+    notes: "Junk Mesa (Biome 2) floor Scrap. Safe range 20–40. Monotonic biome progression is a hard rule: MUST remain `> BiomeBaseScrap.Biome1`. Validator enforced by `LootRewardConfig`."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BiomeBaseScrap.Biome3
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+      # pending: design/gdd/biome.md (undesigned)
+    value: 42
+    unit: Scrap
+    notes: "Haven Approach (Biome 3) floor Scrap. Safe range 30–55. Funds Rare card installs near Haven (InstallBaseCost.Rare = 50). Below 30 = late runs cash-starved; above 55 = trivializes Haven economy. Monotonic biome progression: MUST remain `> BiomeBaseScrap.Biome2`. Validator enforced."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EliteScrapBonus
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+    value: 18
+    unit: Scrap
+    notes: "Flat additive bonus on top of `BiomeBaseScrap[biome]` when `beacon == Elite` (L&R C.4.1). Safe range 10–30. Below 10 = Elites feel under-rewarded relative to their DifficultyScore; above 30 = Elites become the only economic path and route-planning collapses. Boss/Treasure/Event beacons never apply this bonus."
+    added: 2026-04-23
+    revised: ""
+
+  - name: BossFlatScrap
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+    value: 30
+    unit: Scrap
+    notes: "Flat Scrap substitute for the CardOffer at Boss beacons — Boss-skip rule (L&R C.4.3 + AC-LR20). Boss bundles never emit a CardOfferPayload; the slot is unconditionally replaced with `ScrapGrantOffer(BossFlatScrap)` regardless of pity counter or chassis. Safe range 25–50. Must stay close to PityScrapAward (40) but below InstallBaseCost.Rare (50) — Boss Scrap should feel like bonus funding, not a card replacement."
+    added: 2026-04-23
+    revised: ""
+
+  - name: DS_THRESHOLD
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 0.40
+    unit: DifficultyScore (0.0–1.0)
+    notes: "Floor-band width of the banded-linear DSBonus piecewise function (L&R C.4.1 + D.2). Below this threshold DSBonus = DS_FLOOR_BONUS flat; at/above, DSBonus scales linearly to DS_CEILING_BONUS at DS=1.0. Safe range 0.30–0.55. The 0.40 anchor is justified by Patch Rider's 0.128 baseline sitting comfortably in the floor band (D.7 gold-standard trace). Denominator `(1 - DS_THRESHOLD) = 0.60` is a compile-time constant, never zero (AC-LR9)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: DS_FLOOR_BONUS
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 4
+    unit: Scrap
+    notes: "Minimum DSBonus — what every 'easy' combat pays (DS < DS_THRESHOLD). L&R C.4.1 + AC-LR8. Safe range 2–8. Must remain `< DS_CEILING_BONUS`. Below 2 = easy combats feel unpaid; above 8 = easy/hard Scrap gap too narrow."
+    added: 2026-04-23
+    revised: ""
+
+  - name: DS_CEILING_BONUS
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 12
+    unit: Scrap
+    notes: "Maximum DSBonus at DS=1.0 (L&R C.4.1 + AC-LR9). Safe range 8–20. Must remain `> DS_FLOOR_BONUS`. Below 8 = no reward gradient; above 20 = peak-DS combats overpay and destabilize the Biome-3 Elite Truck max (90 Scrap envelope ceiling)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: PartDropCooldownNodes
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      # pending: design/gdd/save-persistence.md (undesigned — LootStateDTO persists PartDropCooldown dict across saves)
+      # pending: design/gdd/vehicle-and-part-system.md (slot enum is now SlotKind {Weapon, Engine, Mobility, Hull, Armor} under ADR-0007 — was {Engine, Frame, Tire, Weapon, Auxiliary}; Frame→Hull rename, Tire→Mobility, Auxiliary removed, Armor added)
+    value: 3
+    unit: nodes
+    notes: "Nodes a slot is blocked from re-drops after a PartDropOffer fires on that slot (L&R C.4.4 + AC-LR22). On drop, `PartDropCooldown[slot] = 3`; decremented by 1 each node until 0. Safe range 2–5. Below 2 = same-slot re-drops feel too fast and break V&P scarcity; above 5 = too many nodes with no eligible part slots, EC-LR7 all-slots-cooldown fallback rate climbs."
+    added: 2026-04-23
+    revised: ""
+
+  - name: PartRarityWeight.Common
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 60
+    unit: weight (unnormalized)
+    notes: "Weight for Common rarity in wildcard PartDropOffer rarity sampling (L&R D.5 + AC-LR25). Safe range 50–70. Weight constraint: `PartRarityWeight.{Common + Uncommon + Rare} == 100` (enforced by `LootRewardConfig` validator at SO import — AC-LR44). Changing any without offsetting invalidates D.5's rarity probability math. 10k-sample empirical distribution must land at 0.60 ± 0.02."
+    added: 2026-04-23
+    revised: ""
+
+  - name: PartRarityWeight.Uncommon
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 30
+    unit: weight (unnormalized)
+    notes: "Weight for Uncommon rarity in wildcard sampling. Safe range 20–35. Weight-sum constraint applies. 10k-sample empirical distribution must land at 0.30 ± 0.02."
+    added: 2026-04-23
+    revised: ""
+
+  - name: PartRarityWeight.Rare
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+    value: 10
+    unit: weight (unnormalized)
+    notes: "Weight for Rare rarity in wildcard sampling. Safe range 5–20. Above 20 = Rares stop feeling rare; below 5 = Rare parts feel unattainable even with many combats. Weight-sum constraint applies. 10k-sample empirical distribution must land at 0.10 ± 0.02."
+    added: 2026-04-23
+    revised: ""
+
+  - name: FuelGrantRange.Min
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+      # pending: design/gdd/fuel-system.md (undesigned — must ratify range against consumption rates)
+    value: 1
+    unit: Fuel
+    notes: "Floor Fuel grant at Treasure/Event beacons (L&R C.4.2 + AC-LR12). Safe range 1–2. Below 1 = dead rewards; above 2 = traversal slack too generous. Sampled via `rng.Next(FuelGrantRange.Min, FuelGrantRange.Max + 1)`. Event-node override in RewardContext replaces the draw. PROVISIONAL: awaits Fuel System GDD ratification (📌 C4-FUEL)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: FuelGrantRange.Max
+    status: active
+    source: design/gdd/loot-reward.md
+    referenced_by:
+      - design/gdd/loot-reward.md
+      - design/gdd/node-encounter.md
+      # pending: design/gdd/fuel-system.md (undesigned)
+    value: 3
+    unit: Fuel
+    notes: "Ceiling Fuel grant at Treasure/Event beacons. Safe range 2–5. Must remain `>= FuelGrantRange.Min`. Above 5 = trivializes route planning. PROVISIONAL: awaits Fuel System GDD ratification (📌 C4-FUEL)."
+    added: 2026-04-23
+    revised: ""
+
+  # ─── Node Encounter constants (Section G on NodeEncounterConfig) ───
+
+  - name: EventBaseWeight.Treasure
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 35
+    unit: weight (integer, out of 100)
+    notes: "Base weight for Treasure payload in Event CDF sampling (Node Encounter C.2.5 + D.2/D.3). Safe range 25–45. Weight constraint: EventBaseWeight.{Treasure + Ambush + Windfall + Convert} MUST sum to 100 — enforced by NodeEncounterConfig validator at SO import. Tilted representation applies HostileTiltDelta.Treasure (-5) when Frame Degraded/Offline at commit time. Payload-order for CDF sampling is fixed: [Treasure, Ambush, Windfall, Convert] — reordering breaks determinism."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventBaseWeight.Ambush
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 20
+    unit: weight (integer, out of 100)
+    notes: "Base weight for Ambush payload in Event CDF sampling. Safe range 15–30. Weight-sum constraint applies (sum of all 4 = 100). Under HostileTiltDelta Ambush becomes 35 — the headline 'road answers back' moment when Frame is damaged (Node Encounter B fantasy spine). Tilted-state Ambush MUST remain the largest single axis (35 > 30 > 20 > 15) to preserve Pillar 5 read."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventBaseWeight.Windfall
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 30
+    unit: weight (integer, out of 100)
+    notes: "Base weight for Windfall payload in Event CDF sampling. Safe range 20–35. Weight-sum constraint applies. Under HostileTiltDelta shrinks to 20 — hostile tilt suppresses good fortune as well as amplifies threat (asymmetric tilt is two-sided, not one-sided). Auto-granted on reveal (no player verb) per Node Encounter C.2.5 — Windfall is a gift, not a choice."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventBaseWeight.Convert
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 15
+    unit: weight (integer, out of 100)
+    notes: "Base weight for Convert payload in Event CDF sampling. Safe range 10–20. Weight-sum constraint applies. HostileTiltDelta.Convert = 0 — tilt is payload-agnostic for the exchange verb (Convert is neither hostile nor windfall; it's a side-door at a favorable rate). One-direction-per-EventConvert enforced structurally (Node Encounter E.7) — player picks Scrap→Fuel or Fuel→Scrap, not both, preventing arbitrage."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventTiltDelta.Treasure
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: -5
+    unit: weight delta (integer, out of 100)
+    notes: "HostileTiltDelta component applied to EventBaseWeight.Treasure when Frame Degraded/Offline at commit time. Safe range -10 to 0. Negative — hostile tilt reduces Treasure likelihood (wasteland takes before it gives). Component of the HostileTiltDelta asymmetric vector {Treasure: -5, Ambush: +15, Windfall: -10, Convert: 0}. Sum of deltas = 0 (redistribution, not inflation). See HostileTiltDelta for canonical vector."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventTiltDelta.Ambush
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 15
+    unit: weight delta (integer, out of 100)
+    notes: "HostileTiltDelta component applied to EventBaseWeight.Ambush when Frame Degraded/Offline. Safe range +10 to +20. Headline magnitude of the HostileTiltDelta vector — legacy references to 'HostileTiltDelta = 0.15' resolve to this axis. Positive — Ambush becomes the modal payload under hostile tilt (35%), the 'road answers back' spine per Player Fantasy B. Component of {Treasure: -5, Ambush: +15, Windfall: -10, Convert: 0}."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventTiltDelta.Windfall
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: -10
+    unit: weight delta (integer, out of 100)
+    notes: "HostileTiltDelta component applied to EventBaseWeight.Windfall when Frame Degraded/Offline. Safe range -15 to -5. Negative — two-sided tilt (hostile tilt suppresses good fortune). Second-largest magnitude after Ambush to preserve the 'physics not punishment' framing (Player Fantasy B) — the wasteland doesn't just punish damage, it also stops giving gifts. Component of HostileTiltDelta vector."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventTiltDelta.Convert
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 0
+    unit: weight delta (integer, out of 100)
+    notes: "HostileTiltDelta component for EventBaseWeight.Convert — zero. Convert is payload-agnostic for hostile tilt (side-door exchange, neither threat nor gift). Intentional invariant: keeping Convert constant across Frame states means the Scrap↔Fuel exchange rate is a stable structural promise the player can rely on regardless of route damage. Safe range fixed at 0 — any non-zero value breaks the structural promise."
+    added: 2026-04-23
+    revised: ""
+
+  - name: WindfallScrapGrant
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+      - design/gdd/scrap-economy.md
+    value: 12
+    unit: Scrap
+    notes: "Fixed Scrap amount granted on Windfall Event payload (Scrap branch of 50/50 coin flip — Node Encounter D.5). Safe range 8–20. Calibrated to sit between DS_FLOOR_BONUS (4) and a typical DSBonus ceiling grant — Windfall Scrap should feel like a meaningful extra node, not a full combat reward. Auto-granted (no player verb) via IScrapEconomy.TryGrantScrap. Paired with Fuel branch that rolls FuelGrantRange [1,3]."
+    added: 2026-04-23
+    revised: ""
+
+  - name: EventConvertFavorableRate
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+      - design/gdd/scrap-economy.md
+    value: 3
+    unit: Scrap per 1 Fuel (or Fuel per 1 Scrap)
+    notes: "Favorable exchange denominator for EventConvert payload (Node Encounter D.4). Floor(input / 3) vs. baseline Chopshop/Merchant rate Floor(input / 4). Safe range 2–3 (must stay below baseline ScrapPerFuelRate/FuelPerScrapRate = 4). The value-add is the whole reason EventConvert exists — if this equals the baseline, Convert is a dead payload. One-direction-per-EventConvert structurally enforced (E.7 arbitrage proof)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: MerchantOfferCount
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+      - design/gdd/loot-reward.md
+      - design/gdd/card-system.md
+    value: 3
+    unit: cards
+    notes: "Number of card offers presented at a Merchant beacon (Node Encounter C.2.3). Safe range 2–4. Below 2 = binary choice collapses to 'buy or skip'; above 4 = decision paralysis erodes pacing. L&R's ICardRewardGenerator must honor this count when Merchant context is requested. Empty-pool fallback: if fewer than MerchantOfferCount cards are available, degrade to BiomeBaseScrap salvage (E.3)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: ChopshopPartOfferCount
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+      - design/gdd/loot-reward.md
+      - design/gdd/vehicle-and-part-system.md
+    value: 3
+    unit: parts
+    notes: "Number of part offers presented at a Chopshop beacon (Node Encounter C.2.4). Safe range 2–4. Parity rule: must equal MerchantOfferCount — the two discretionary purchase beacons should offer symmetric choice density. L&R's part-offer generator must honor this count. Empty-pool fallback: degrade to BiomeBaseScrap salvage (E.3)."
+    added: 2026-04-23
+    revised: ""
+
+  - name: HandlerTimeout.NonCombat
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 30
+    unit: seconds
+    notes: "Watchdog timeout for non-Combat handler states (Merchant/Chopshop/Event/Rest/Haven) — Node Encounter E.9. If HandlerActive state persists beyond this without a BeaconOutcome callback, logs dev warning and forces min-harm Idle transition. Safe range 20–60. Below 20 = risks tripping on slow animation beats; above 60 = stuck-state debugging too slow. NOT a player-facing timer; purely an invariant guard."
+    added: 2026-04-23
+    revised: ""
+
+  - name: HandlerTimeout.Combat
+    status: active
+    source: design/gdd/node-encounter.md
+    referenced_by:
+      - design/gdd/node-encounter.md
+    value: 600
+    unit: seconds
+    notes: "Watchdog timeout for Combat/EliteCombat handler states — Node Encounter E.9. Much longer than non-Combat because Combat encounters legitimately run 5–10 minutes. Safe range 300–900. Below 300 = risks tripping on long elite fights; above 900 = wedged-combat recovery too slow. Separate constant from HandlerTimeout.NonCombat because the duration distributions don't overlap — one timeout can't serve both."
+    added: 2026-04-23
+    revised: ""
+
+  # ─── Frame Layout identifiers (ADR-0007 / V&P R_FL) ───
+  # FrameLayoutId values are stable strings that vehicles (player + enemy) carry
+  # to reference the FrameLayoutSO asset that defines their slot structure.
+  # Listed here as constants so Enemy System and other GDDs can reference these
+  # identifiers without re-deriving the canonical spelling.
+
+  - name: FrameLayoutId.small_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+      # pending: design/gdd/biome-1-enemy-roster.md (Dune Skimmer Scout uses small_frame variant — TBD in W2)
+    value: "small_frame"
+    unit: FrameLayoutId string
+    notes: "Player Scout chassis layout. 5 slots: weapon_front (Weapon, Position=Front), weapon_back (Weapon, Position=Back), engine_0 (Engine), mobility_0 (Mobility), hull_0 (Hull, IsStructural). Authoritative slot table in V&P R_FL.2."
+    added: 2026-05-18
+    revised: ""
+
+  - name: FrameLayoutId.medium_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+    value: "medium_frame"
+    unit: FrameLayoutId string
+    notes: "Player Assault chassis layout (post-EA). 5 slots — exact composition deferred to balance pass. V&P R_FL.2 placeholder."
+    added: 2026-05-18
+    revised: ""
+
+  - name: FrameLayoutId.heavy_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+    value: "heavy_frame"
+    unit: FrameLayoutId string
+    notes: "Player Heavy Truck chassis layout (post-EA). 7 slots. V&P R_FL.2 placeholder. Larger Hull HP and additional Engine/Weapon slots compared to Small Frame."
+    added: 2026-05-18
+    revised: ""
+
+  - name: FrameLayoutId.tiny_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+      # pending: design/gdd/biome-1-enemy-roster.md (Dune Skimmer Scout primary candidate — TBD in W2)
+    value: "tiny_frame"
+    unit: FrameLayoutId string
+    notes: "Enemy-only layout. 4 slots: weapon_0 (Weapon, Position=Any), engine_0 (Engine), mobility_0 (Mobility), hull_0 (Hull, IsStructural). Used for the Dune Skimmer Scout archetype and other lightweight Biome-1 hostiles. Authoritative slot table in V&P R_FL.3."
+    added: 2026-05-18
+    revised: ""
+
+  - name: FrameLayoutId.hauler_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+      # pending: design/gdd/biome-1-enemy-roster.md (Iron Shepherd Elite candidate — TBD in W2)
+    value: "hauler_frame"
+    unit: FrameLayoutId string
+    notes: "Enemy mid-tier layout (Elite-class hostile). 5 slots — similar to Small Frame but with Iron Shepherd-style profile. Authoritative slot table in V&P R_FL.3."
+    added: 2026-05-18
+    revised: ""
+
+  - name: FrameLayoutId.dredge_frame
+    status: active
+    source: design/gdd/vehicle-and-part-system.md
+    referenced_by:
+      - design/gdd/vehicle-and-part-system.md
+      # pending: docs/architecture/adr-0007-frame-driven-variable-slot-system.md
+      # pending: design/gdd/biome-1-enemy-roster.md (The Dredge boss — confirmed)
+    value: "dredge_frame"
+    unit: FrameLayoutId string
+    notes: "Boss layout for The Dredge (Biome 1 boss). 10 slots, including TWO Armor slots (armor_chest, armor_back) with ExposureMultiplier=3.0 redirecting to hull_0 — the centerpiece of the Armor slot mechanic. Authoritative slot table in V&P R_FL.3 and R_ARM.3 worked examples."
+    added: 2026-05-18
+    revised: ""
 
 # Example:
 #

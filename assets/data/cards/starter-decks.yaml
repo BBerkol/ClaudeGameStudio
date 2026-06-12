@@ -1,0 +1,483 @@
+# Wasteland Run — Starter Deck Card Specifications
+# Source of truth for Unity asset authoring (Story 010 / TR-card-011)
+#
+# AUTHORING INSTRUCTIONS
+# ----------------------
+# For each card below:
+#   1. In Unity: Assets > Create > Wasteland > Card > Definition
+#   2. Set each field exactly as specified. CardId format: [chassis]_[family]_[seq]
+#   3. For each effect, create the matching EffectSO asset (e.g. Assets > Create > Wasteland > Card > Effects > [type])
+#      and reference it in the card's Effects list.
+#   4. Save — OnValidate fires and logs errors for any violations.
+#
+# VALIDATION RULES ENFORCED BY OnValidate (Story 002)
+# ---------------------------------------------------
+# - CardId must match ^[a-z]+_[a-z]+_[0-9]{3}$
+# - EnergyCost >= 0
+# - MerchantPrice != 30
+# - Keywords: Ethereal and Retain are mutually exclusive
+# - Control-family cards must have at least one DamageEffectSO with Amount >= 1
+# - BypassPlating: cannot target Frame; cannot use AllEnemySubsystems; requires explicit targets
+# - BaseDamage must equal first DamageEffectSO.Amount and be >= 1 on damage cards
+#
+# FAMILY DISTRIBUTION CONSTRAINTS (GDD Deck Composition Rules)
+# -----------------------------------------------------------
+# Scout:  Precision >= 3, Maneuver >= 2, Repair >= 1. No Assault-family cards.
+# Assault: Assault >= 3 (of which BroadAssault >= 2), Precision >= 2, Repair >= 1, Maneuver <= 1
+# BroadAssault = TargetType: AllEnemySubsystems OR TargetType: EnemySubsystem + ValidSubsystemTargets: [Frame]
+
+---
+chassis: Scout
+total_cards: 10
+family_counts: { Precision: 4, Maneuver: 3, Repair: 2, Control: 1 }
+
+cards:
+
+  - card_id: scout_precision_001
+    display_name: "Targeted Shot"
+    description_template: "Deal {damage} damage to a subsystem."
+    flavor_text: "Pick the joint. Not the body."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Scout
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: [Weapon, Engine, Mobility]
+    position_requirement: None
+    keywords: None
+    base_damage: 3
+    effects:
+      - type: DamageEffectSO
+        amount: 3
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: scout_precision_002
+    display_name: "Expose Weakness"
+    description_template: "Deal {damage} damage. Deals {bonus} more when ahead."
+    flavor_text: "The gap between vehicles is a weapon."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Scout
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots
+    position_requirement: BonusIfAhead
+    keywords: None
+    base_damage: 4
+    effects:
+      - type: DamageEffectSO
+        amount: 4
+        position_bonus: 2
+        bypass_plating: false
+        conditions: []
+
+  - card_id: scout_precision_003
+    display_name: "Engine Burst"
+    description_template: "Deal {damage} damage to the Engine."
+    flavor_text: "Cut the power. End the chase."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Scout
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: [Engine]
+    position_requirement: None
+    keywords: None
+    base_damage: 2
+    effects:
+      - type: DamageEffectSO
+        amount: 2
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: scout_precision_004
+    display_name: "Flanking Fire"
+    description_template: "Deal {damage} damage. Requires being ahead."
+    flavor_text: "Strike the flank before they see you."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Scout
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots
+    position_requirement: RequiresAhead
+    keywords: None
+    base_damage: 5
+    effects:
+      - type: DamageEffectSO
+        amount: 5
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: scout_maneuver_001
+    display_name: "Open Throttle"
+    description_template: "Move ahead on the chase rail."
+    flavor_text: "Floor it."
+    card_art_key: "placeholder_maneuver"
+    chassis_pool: Scout
+    family: Maneuver
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: NoTarget
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: ShiftPositionEffectSO
+        direction: 1   # +1 = move ahead
+
+  - card_id: scout_maneuver_002
+    display_name: "Evasive Drift"
+    description_template: "Move behind on the chase rail."
+    flavor_text: "Let them pass. Then hit them where it hurts."
+    card_art_key: "placeholder_maneuver"
+    chassis_pool: Scout
+    family: Maneuver
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: NoTarget
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: ShiftPositionEffectSO
+        direction: -1   # -1 = move behind
+
+  - card_id: scout_maneuver_003
+    display_name: "Momentum Burst"
+    description_template: "Move ahead. Gain {energy} Energy."
+    flavor_text: "Speed is the only currency that matters."
+    card_art_key: "placeholder_maneuver"
+    chassis_pool: Scout
+    family: Maneuver
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: NoTarget
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: ShiftPositionEffectSO
+        direction: 1
+      - type: GainEnergyEffectSO
+        amount: 1
+
+  - card_id: scout_repair_001
+    display_name: "Field Patch"
+    description_template: "Restore {armor} Armor."
+    flavor_text: "Good enough to keep moving."
+    card_art_key: "placeholder_repair"
+    chassis_pool: Scout
+    family: Repair
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: Self
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: RestoreArmorEffectSO
+        amount: 2
+
+  - card_id: scout_repair_002
+    display_name: "Quick Fix"
+    description_template: "Restore {armor} Armor."
+    flavor_text: "The wrench is mightier than the gun, sometimes."
+    card_art_key: "placeholder_repair"
+    chassis_pool: Scout
+    family: Repair
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: Self
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: RestoreArmorEffectSO
+        amount: 3
+
+  - card_id: scout_control_001
+    display_name: "Warning Shot"
+    description_template: "Deal {damage} damage to any subsystem."
+    flavor_text: "Not a miss. A message."
+    card_art_key: "placeholder_control"
+    chassis_pool: Scout
+    family: Control
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots
+    position_requirement: None
+    keywords: None
+    base_damage: 2
+    effects:
+      - type: DamageEffectSO
+        amount: 2
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+---
+chassis: Assault
+total_cards: 10
+family_counts: { Assault: 4, Precision: 3, Maneuver: 1, Repair: 1, Control: 1 }
+broad_assault_count: 3   # cards with TargetType=AllEnemySubsystems or Frame-only EnemySubsystem
+
+cards:
+
+  - card_id: assault_assault_001
+    display_name: "Heavy Barrage"
+    description_template: "Deal {damage} damage to all subsystems."
+    flavor_text: "Why pick one target when you can hit them all?"
+    card_art_key: "placeholder_assault"
+    chassis_pool: Assault
+    family: Assault
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: AllEnemySubsystems   # BROAD ASSAULT ✓
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 2
+    effects:
+      - type: DamageEffectSO
+        amount: 2
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_assault_002
+    display_name: "Frame Breaker"
+    description_template: "Deal {damage} damage to the Frame."
+    flavor_text: "Break the bones. The rest falls apart."
+    card_art_key: "placeholder_assault"
+    chassis_pool: Assault
+    family: Assault
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: [Frame]   # Frame-only = BROAD ASSAULT ✓
+    position_requirement: None
+    keywords: None
+    base_damage: 4
+    effects:
+      - type: DamageEffectSO
+        amount: 4
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_assault_003
+    display_name: "Suppressing Fire"
+    description_template: "Deal {damage} damage to all subsystems."
+    flavor_text: "Keep their heads down."
+    card_art_key: "placeholder_assault"
+    chassis_pool: Assault
+    family: Assault
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: AllEnemySubsystems   # BROAD ASSAULT ✓
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 1
+    effects:
+      - type: DamageEffectSO
+        amount: 1
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_assault_004
+    display_name: "Crushing Blow"
+    description_template: "Deal {damage} damage to a subsystem."
+    flavor_text: "Raw power. No finesse needed."
+    card_art_key: "placeholder_assault"
+    chassis_pool: Assault
+    family: Assault
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots (not Broad — single target)
+    position_requirement: None
+    keywords: None
+    base_damage: 4
+    effects:
+      - type: DamageEffectSO
+        amount: 4
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_precision_001
+    display_name: "Weapon Strike"
+    description_template: "Deal {damage} damage to the Weapon slot."
+    flavor_text: "Silence their guns first."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Assault
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: [Weapon]
+    position_requirement: None
+    keywords: None
+    base_damage: 3
+    effects:
+      - type: DamageEffectSO
+        amount: 3
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_precision_002
+    display_name: "Mobility Kill"
+    description_template: "Deal {damage} damage to the Mobility slot."
+    flavor_text: "A vehicle that can't move is already dead."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Assault
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: [Mobility]
+    position_requirement: None
+    keywords: None
+    base_damage: 3
+    effects:
+      - type: DamageEffectSO
+        amount: 3
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_precision_003
+    display_name: "Target Acquired"
+    description_template: "Deal {damage} damage to a subsystem."
+    flavor_text: "Lock on. Fire."
+    card_art_key: "placeholder_precision"
+    chassis_pool: Assault
+    family: Precision
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 2
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots
+    position_requirement: None
+    keywords: None
+    base_damage: 5
+    effects:
+      - type: DamageEffectSO
+        amount: 5
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
+
+  - card_id: assault_maneuver_001
+    display_name: "Combat Advance"
+    description_template: "Move ahead on the chase rail."
+    flavor_text: "Close the gap. End it fast."
+    card_art_key: "placeholder_maneuver"
+    chassis_pool: Assault
+    family: Maneuver
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: NoTarget
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: ShiftPositionEffectSO
+        direction: 1
+
+  - card_id: assault_repair_001
+    display_name: "Emergency Weld"
+    description_template: "Restore {armor} Armor."
+    flavor_text: "Hold together. Just a little longer."
+    card_art_key: "placeholder_repair"
+    chassis_pool: Assault
+    family: Repair
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: Self
+    valid_subsystem_targets: []
+    position_requirement: None
+    keywords: None
+    base_damage: 0
+    effects:
+      - type: RestoreArmorEffectSO
+        amount: 2
+
+  - card_id: assault_control_001
+    display_name: "Suppression"
+    description_template: "Deal {damage} damage to a subsystem."
+    flavor_text: "Make them react. Then capitalize."
+    card_art_key: "placeholder_control"
+    chassis_pool: Assault
+    family: Control
+    rarity: Common
+    is_starter_card: true
+    energy_cost: 1
+    merchant_price: 0
+    target_type: EnemySubsystem
+    valid_subsystem_targets: []   # empty = all 4 slots
+    position_requirement: None
+    keywords: None
+    base_damage: 2
+    effects:
+      - type: DamageEffectSO
+        amount: 2
+        position_bonus: 0
+        bypass_plating: false
+        conditions: []
