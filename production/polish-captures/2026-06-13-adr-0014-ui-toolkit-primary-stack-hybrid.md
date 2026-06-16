@@ -52,6 +52,47 @@ replaced.
 
 No code touched. No prefab touched. No SO touched.
 
+## Phase 1 files (Unity repo, same calendar day commit)
+
+Phase 1 lands the USS design tokens, the four base controls, the asmdef
+boundary for the new `WastelandRun.UI` namespace, and the editor menu
+that creates the shared `PanelSettings.asset`. No prefab or SO is
+authored in Phase 1 — every file is greenfield seed code/assets.
+
+| File | Kind | Purpose |
+|------|------|---------|
+| `Assets/Scripts/UI/WastelandRun.UI.asmdef` | asmdef | New asmdef for the screen-space stack; references `WastelandRun.Combat` + `WastelandRun.Run`. Enforces ADR-0014 namespace boundary. |
+| `Assets/Scripts/UI/Phase1Marker.cs` | C# | Internal marker class with `AdrReference = "ADR-0014"`; gives the asmdef a compilation root before Phase 2 lands real controllers. |
+| `Assets/UI/Tokens/tokens.colors.uss` | USS | Placeholder color vars (`--wr-color-bg`, `--wr-color-text`, `--wr-color-accent`, …). Each var flagged `/* PLACEHOLDER — ADR-0014 P1 */` so art-director pass can replace without grep miss. |
+| `Assets/UI/Tokens/tokens.typography.uss` | USS | Font-size scale (`--wr-font-size-sm` … `--wr-font-size-xxl`). |
+| `Assets/UI/Tokens/tokens.spacing.uss` | USS | 4px-base spacing ladder (`--wr-space-xs` … `--wr-space-xl`). |
+| `Assets/UI/Tokens/tokens.radii.uss` | USS | Radii scale (`--wr-radius-sm`, `--wr-radius-md`, `--wr-radius-lg`). |
+| `Assets/UI/controls.uss` | USS | Class styles for the four TD-approved base controls: `.wr-button` (+`:hover`, `:disabled`), `.wr-label` (+modifiers), `.wr-panel`, `.wr-list`. Every property reads a token var — no inline hex/px. |
+| `Assets/UI/Playground.uxml` | UXML | Demonstration scene showing the four controls under the token system. Open in UI Builder to verify tokens cascade. Not shipped in build. |
+| `Assets/UI/Playground.uss` | USS | Layout styles for the Playground UXML (flex row/column, padding via spacing tokens). |
+| `Assets/Editor/UIToolkitInitializer.cs` | Editor C# | New editor-only menu (`Wasteland Run > UI Toolkit > Initialize P1 PanelSettings`) that creates `Assets/UI/PanelSettings.asset` configured 1920×1080 / `ScaleWithScreenSize` / `MatchWidthOrHeight` / Match=0.5 / SortingOrder=0 to mirror the existing `Combat_HUD` Canvas scaling so the eventual Phase 4 swap is a 1:1 visual replacement. No-op if the asset already exists. |
+
+**Authored values destroyed by Phase 1: NONE.** Phase 1 is purely
+additive — it creates a new asmdef, a new asset folder, and a new
+PanelSettings asset. No existing prefab, scene, SO, or script is
+modified. The destructive edits land in P3 and P4 with their own
+captures, as committed in the table above.
+
+### Technical Director review applied to Phase 1
+
+The TD verdict captured under `## Technical Director Review` below covers
+**the project-wide UI stack decision** that Phase 1 implements. Phase 1's
+specific structural picks (4-control set, USS token files, single shared
+`PanelSettings`, screen-space `WastelandRun.UI` asmdef separate from
+`WastelandRun.CombatView`, no custom C# control classes at P1) were
+confirmed by the user after TD's spec was surfaced — see the ADR §"Phase
+1 — Token foundation + base controls" subsection for the locked
+structural shape. The editor script `UIToolkitInitializer.cs` is the
+canonical mechanism for creating the shared PanelSettings asset; it lives
+under `WastelandRun.CombatView.Editor` (the existing editor asmdef) and
+mirrors the existing `Combat_HUD` Canvas reference resolution and scale
+mode so the Phase 4 swap is visually neutral.
+
 ## Final-game picture this serves
 
 Wasteland Run 1.0 ships with:
