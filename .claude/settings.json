@@ -72,6 +72,11 @@
             "type": "command",
             "command": "bash .claude/hooks/capture-before-destroy.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/td-review-required.sh",
+            "timeout": 10
           }
         ]
       }
