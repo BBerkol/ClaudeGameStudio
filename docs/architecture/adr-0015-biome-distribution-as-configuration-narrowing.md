@@ -10,7 +10,7 @@ Accepted (2026-06-15)
 
 ## Last Verified
 
-2026-06-15
+2026-06-21 (Block 2 amendment — strip-grammar dropped; FTL-style descriptor preserved; Block 1 generator landed Unity `ce3cc5d`)
 
 ## Decision Makers
 
@@ -27,7 +27,10 @@ that have shipped handlers. Adding new content later is a data edit, not a
 code-path unfork. First application: the Slice 6 node-map biome-web
 generator narrows biome 1 to `{Combat, Haven}` beacon types via
 `Biome1Distribution.asset` while the full 7-type beacon enum (Combat,
-EliteCombat, Merchant, Chopshop, Event, Rest, Haven) is real in code.
+EliteCombat, Merchant, Chopshop, Event, Rest, Haven) is real in code. The
+canonical generator is FTL-style free-placed clustering — Poisson-disc
+placement + Bowyer-Watson Delaunay triangulation + forward-bias edge
+pruning — landed in Block 1 of the 2026-06-19 generator pivot.
 
 ## Engine Compatibility
 
@@ -69,22 +72,28 @@ currently implemented, without violating ADR-0011 on what we ship?
 Two failed answers we've already rejected:
 1. Ship a prototype linear chain (`NodeMap.BuildLinearMilestone1`) and
    replace it later — TD rejected on 2026-06-15. Linear is scaffolding;
-   the canonical FTL-style placement does not exist in this shape.
+   the canonical FTL-style free-placed clustering does not exist in
+   this shape.
 2. Ship the canonical generator with `if (handler exists)` branches
    per beacon type — bimodal path (ADR-0011 #3) + stub returns (#6).
 
 ### Current State
 
-Slice 5b shipped `RunState.PendingCardOffer` and the run loop currently
-uses `NodeMap.SingleCombat` (Slice 5a bootstrap helper, single Combat
-beacon flanked by Start + Haven) as the map source. `NodeMap.BuildLinearMilestone1`
-(Slice 2 helper, hardcoded 3-Combat linear chain) also exists. Both
-contradict the canonical FTL-web shape per node-map GDD C1.1.
+Slice 6 closed 2026-06-19 — `BiomeWebGenerator`, `BiomeDistributionSO`,
+and `Biome1Distribution.asset` shipped, with the linear/SingleCombat
+scaffolds retired. Block 1 of the generator pivot (Unity `ce3cc5d`,
+2026-06-20) replaced an interim strip-grid placement with the canonical
+FTL-style algorithm: Poisson-disc placement + Bowyer-Watson Delaunay
+triangulation + forward-bias edge pruning, all driven by the
+`BiomeGenerationInputs` POCO. Block 2 (this amendment) threads the
+`AllowBidirectional` traversal-policy flag through `NodeMap.FromBiomeGraph`
+and renames the adjacency surface on the map view-models.
 
 Beacon types currently emitted: `Combat`, `Haven`. Beacon types defined in
-enum: `Combat`, `EliteCombat`, `Merchant`, `Chopshop`, `Event`, `Rest`,
-`Haven`. The four unhandled types have no commit-pipeline handlers and no
-view-layer presenters.
+enum: `Start`, `Combat`, `EliteCombat`, `Merchant`, `Chopshop`, `Event`,
+`Rest`, `Haven` (8 values — full set per this ADR's precondition). The
+five unhandled types have no commit-pipeline handlers and no view-layer
+presenters yet; each ships as its own canonical slice.
 
 ### Constraints
 
@@ -148,17 +157,24 @@ the code layer. The recipe is fixed:
                                 ▼ (referenced by)
 ┌─────────────────────────────────────────────────────────────────────┐
 │  BiomeDistributionSO (Run/BiomeDistributionSO.cs)                   │
-│  - DistributionEntry[] Entries                                      │
-│    { BeaconType Type, float Weight, EnemyArchetypeId? Archetype }   │
-│  - int MinBeacons, MaxBeacons (18-22 per GDD)                       │
-│  - int StripCount (5 per GDD)                                       │
-│  - int GateFunnelMaxBeacons (1-2 per GDD)                           │
+│  - DistributionEntry[] NonTerminal + TerminalBeaconType             │
+│    (BeaconType + Weight, plus per-archetype combat weight pool)     │
+│  - bool AllowBidirectional (lagging-dependency policy flag,         │
+│    Block 2 — true until fuel/storm forward pressure ships)          │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼ (converted by factory to)
+┌─────────────────────────────────────────────────────────────────────┐
+│  BiomeGenerationInputs (Run/BiomeGenerationInputs.cs)               │
+│  Engine-free POCO record per ADR-0002 noEngineReferences.           │
+│  Carries the SO's narrowing data into the WastelandRun.Run asmdef.  │
 └─────────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼ (data input to)
 ┌─────────────────────────────────────────────────────────────────────┐
 │  BiomeWebGenerator (Run/BiomeWebGenerator.cs)                       │
-│  Canonical FTL placement per node-map GDD C1.1.                     │
+│  Poisson-disc placement + Bowyer-Watson Delaunay triangulation +    │
+│  forward-bias edge pruning per node-map GDD C1.1.                   │
 │  Reads only what the distribution table provides.                   │
 │  Knows nothing about which types are "missing."                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -182,45 +198,30 @@ the code layer. The recipe is fixed:
 ### Key Interfaces
 
 ```csharp
-// Run/BiomeDistributionSO.cs (Slice 6 Phase E)
-[CreateAssetMenu(menuName = "WastelandRun/Run/Biome Distribution")]
-public sealed class BiomeDistributionSO : ScriptableObject
+// Run/BiomeGenerationInputs.cs (POCO record, ADR-0002 noEngineReferences)
+public sealed record BiomeGenerationInputs(
+    IReadOnlyList<(BeaconType Type, int Weight)>          NonTerminalBeaconWeights,
+    BeaconType                                            TerminalBeaconType,
+    IReadOnlyList<(EnemyArchetypeId Id, int Weight)>      CombatArchetypeWeights,
+    bool                                                  AllowBidirectional = false);
+
+// Run/BiomeWebGenerator.cs (Block 1 — 2026-06-20)
+public sealed class BiomeWebGenerator
 {
-    [Serializable]
-    public struct DistributionEntry
-    {
-        public BeaconType Type;
-        [Min(0f)] public float Weight;
-        // Only meaningful when Type == Combat or EliteCombat
-        public EnemyArchetypeId Archetype;
-    }
-
-    [SerializeField] private DistributionEntry[] _entries;
-    [SerializeField] private int _minBeacons = 18;
-    [SerializeField] private int _maxBeacons = 22;
-    [SerializeField] private int _stripCount = 5;
-    [SerializeField] private int _gateFunnelMaxBeacons = 2;
-
-    public IReadOnlyList<DistributionEntry> Entries => _entries;
-    public int MinBeacons => _minBeacons;
-    public int MaxBeacons => _maxBeacons;
-    public int StripCount => _stripCount;
-    public int GateFunnelMaxBeacons => _gateFunnelMaxBeacons;
+    public BiomeGraph Generate(BiomeGenerationInputs inputs, int runSeed);
 }
 
-// Run/BiomeWebGenerator.cs (Slice 6 Phase E)
-public static class BiomeWebGenerator
+// Run/NodeMap.cs (Slice 6 + Block 2)
+public sealed class NodeMap
 {
-    public static BeaconData[] Generate(
-        int biomeIndex,
-        BiomeDistributionSO distribution,
-        System.Random rng);
+    public static NodeMap FromBiomeGraph(
+        BiomeGraph     graph,
+        int            runSeed,
+        BeaconType     terminalType,
+        bool           allowBidirectional);   // Block 2
+    // Advance accepts forward edges always; reverse edges only when
+    // allowBidirectional is true.
 }
-
-// Run/NodeMap.cs (Slice 6 Phase E — new canonical entry point)
-public static NodeMap BuildFromBiomes(
-    int runSeed,
-    BiomeDistributionSO[] biomes);
 ```
 
 ### Implementation Guidelines
@@ -363,6 +364,10 @@ card pools, merchant inventories) adopt it as their canonical shape.
    tables and Merchant commit-pipeline handler in the same slice.
 4. M2 (Biome 2) authors `Biome2Distribution.asset` with biome-2 enemy
    roster + new beacon types. Zero generator code changes.
+5. Slice 7 (Save & Persistence, ADR-0004) — `AllowBidirectional` joins the
+   `RunStateDto` surface alongside `BiomeId + RunSeed + CurrentIndex +
+   PathHistory[]` so save/load round-trips the traversal-policy flag with
+   the rest of the run state.
 
 **Rollback plan**: If the pattern proves brittle (e.g., distribution tables
 become unmaintainable, or content drift creates per-biome edge cases that
@@ -372,20 +377,27 @@ be inlined as code constants if needed. Generator interface stays the same.
 
 ## Validation Criteria
 
-- [ ] Slice 6 Phase E ships `BiomeWebGenerator` + `BiomeDistributionSO` +
-  `Biome1Distribution.asset`. Generator tests pass (7 cases minimum:
-  deterministic-per-seed, min-sep, forward-cone, forward-path guarantee,
-  gate-funnel topology, distribution-weighted assignment, boss-Standard).
-- [ ] `BeaconType` enum (Start, Combat, EliteCombat, Merchant, Chopshop,
-  Event, Rest, Haven — 8 values) is complete in code at Slice 6 close. No
-  `// TODO` markers. Doc comment cites ADR-0015 (full enum + narrow table),
-  not ADR-0011 (no placeholder values).
-- [ ] `Biome1Distribution.asset` contains only Combat + Haven entries.
-  Generator emits only those types when run against this asset.
-- [ ] No `if (type == X) throw NotImplementedException` branches anywhere
-  in the commit pipeline. CI grep gate enforces.
-- [ ] No `BuildLinearMilestone1`, no `SingleCombat`, no `Phase1Marker`
-  surviving in code at Slice 6 close.
+- [x] Slice 6 Phase E shipped `BiomeWebGenerator` + `BiomeDistributionSO` +
+  `Biome1Distribution.asset` (2026-06-19). Block 1 (2026-06-20, Unity
+  `ce3cc5d`) replaced the interim placement with Poisson-disc +
+  Bowyer-Watson Delaunay + forward-bias pruning. Generator tests pass
+  (determinism, anti-correlation across seeds, min-separation, forward-path
+  guarantee, statistical angle-bias).
+- [x] `BeaconType` enum is the full 8-value set (Start, Combat,
+  EliteCombat, Merchant, Chopshop, Event, Rest, Haven). No `// TODO`
+  markers. Doc comment cites ADR-0015.
+- [x] `Biome1Distribution.asset` contains only Combat (non-terminal) and
+  Haven (terminal). Generator emits only those types when run against
+  this asset.
+- [x] No `if (type == X) throw NotImplementedException` branches in the
+  commit pipeline.
+- [x] No `BuildLinearMilestone1`, no `SingleCombat`, no `Phase1Marker`
+  surviving in code.
+- [x] Block 2 (2026-06-21) — `AllowBidirectional` threaded through
+  `BiomeGenerationInputs` → `NodeMap.FromBiomeGraph` → `NodeMap.Advance`
+  with four EditMode invariant tests; map view-models renamed
+  `IsReachable → IsAdjacentToCurrent`; ADR-0015 amended to drop
+  strip-grammar wording while preserving the FTL-style descriptor.
 - [ ] First future application (next beacon-type handler slice — likely
   Merchant) ships its handler as canonical, not as a stub.
 
@@ -394,7 +406,7 @@ be inlined as code constants if needed. Generator interface stays the same.
 | GDD Document | System | Requirement | How This ADR Satisfies It |
 |-------------|--------|-------------|--------------------------|
 | `design/gdd/node-map.md` | Node Map | C1.1 §7: "Beacon types: `{Combat, EliteCombat, Merchant, Chopshop, Event, Rest, Haven}`. Per-biome distribution is owned by the Node Encounter GDD (Node Map reads the distribution table; does not author it)." | `BiomeDistributionSO` is the distribution-table seam the GDD calls for. Generator consumes; designer authors per-biome assets. |
-| `design/gdd/node-map.md` | Node Map | C1.1 §1-6: FTL beacon-web generation with 3 biomes, 18-22 beacons each, 5 strips, 80px min-sep, 45° forward cone, forward-path guarantee. | `BiomeWebGenerator` implements the canonical algorithm from day one, regardless of how narrow any biome's distribution table is. |
+| `design/gdd/node-map.md` | Node Map | C1.1 §1-6: FTL beacon-web generation with 3 biomes, 18-22 beacons each, 80px min-sep, forward-biased connectivity, forward-path guarantee. | `BiomeWebGenerator` implements the canonical Poisson-disc + Bowyer-Watson Delaunay + forward-bias-pruning algorithm from day one, regardless of how narrow any biome's distribution table is. |
 | (foundational) | (project-wide) | ADR-0011 forbidden patterns #3 (bimodal), #6 (stub returns), #7 (transitional comments) | Pattern routes scope narrowing entirely through data tables, bypassing all three forbidden-pattern surfaces. |
 
 ## Related
