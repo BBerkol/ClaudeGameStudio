@@ -83,22 +83,37 @@ The GDD (`design/gdd/save-persistence.md`) is **Designed** status, second revisi
 **Each DTO class declares its own stable identity constants:**
 
 ```csharp
-public sealed class LootStateDTO
+public sealed class NodeMapDto : IRunStateSerializable
 {
-    public const string SystemId      = "loot-reward";
-    public const int    SchemaVersion = 1;
+    public const string SYSTEM_ID      = "run.node_map";
+    public const int    SCHEMA_VERSION = 1;
+
+    [JsonIgnore] public string SystemId      => SYSTEM_ID;
+    [JsonIgnore] public int    SchemaVersion => SCHEMA_VERSION;
     // ... payload fields ...
 }
 ```
 
 **Rules:**
 
-- `SystemId` is a stable string that never changes post-ship — it keys the DTO into the envelope contract for all time.
-- `SchemaVersion` starts at `1` and increments by `1` on every breaking payload change (field added/removed/renamed/re-typed).
+- `SYSTEM_ID` is a stable string that never changes post-ship — it keys the DTO into the envelope contract for all time.
+- `SCHEMA_VERSION` starts at `1` and increments by `1` on every breaking payload change (field added/removed/renamed/re-typed).
 - **No central registry file.** There is no `docs/architecture/schema-registry.yaml` or equivalent — the DTO class IS the single source of truth for its schema identity.
-- **Uniqueness is enforced by a reflection unit test** (`SchemaRegistry_Unique_test`): at CI time, scan the gameplay assembly for all types with both constants, assert every `SystemId` appears exactly once. Duplicate `SystemId` fails the build with both offending types named.
+- **Uniqueness is enforced by a reflection unit test** (`SchemaRegistry_Unique_test`): at CI time, scan the gameplay assembly for all types with both constants, assert every `SYSTEM_ID` appears exactly once. Duplicate `SYSTEM_ID` fails the build with both offending types named.
+
+**Naming conventions (locked by Slice 8a Amendment 2026-06-24):**
+
+- **Const fields** are UPPER_SNAKE_CASE — `SYSTEM_ID` / `SCHEMA_VERSION` — matching the project-wide constants convention from `.claude/docs/technical-preferences.md`. PascalCase here would collide with the matching instance properties on `IRunStateSerializable` / `IMasteryStateSerializable`, forcing rename gymnastics. The reflection scan in `SchemaRegistry_Unique_test` looks for these exact UPPER_SNAKE_CASE names.
+- **Instance properties** that satisfy the interface read from the const — `public string SystemId => SYSTEM_ID;`. Single source of truth: the registry scan and the orchestrator's runtime dispatch agree because they both ultimately resolve to the same const.
+- **`SystemId` value** is the dotted-snake hierarchical convention `"category.identifier"`:
+  - **First segment** is the asymmetric-exhaustion category: `run` (RunState) or `mastery` (MasteryState). The recovery chain in Decision 4 treats these categories with different exhaustion policies; encoding the category in the wire value makes corrupted-save diagnostics human-readable without cross-referencing code.
+  - **Second segment** is snake_case identifier per system.
+  - Examples: `run.node_map`, `run.player_vehicle`, `run.run_deck`, `mastery.unlocks`.
+  - **Flat snake-case** (`node-map`, `nodemap`) was rejected because it loses the category signal at the wire layer. **PascalCase coupled to the C# type name** (`NodeMapDto`) was rejected because a rename either breaks the `SystemId` (forbidden pattern #4 from ADR-0011) or keeps a stale string (forbidden pattern #7).
 
 **Rationale:** A central registry file becomes a drift vector — every DTO change requires editing two places and eventually diverges. Distributed constants + CI-enforced uniqueness gives the same drift-resistance at zero coordination cost. This follows the same principle as ADR-0003's "each seeded system owns its stepIndex semantic" — single source of truth, CI-enforced.
+
+The naming conventions above were locked at Slice 8a (first real DTO landing) when the const-vs-property collision surfaced. Slice 8 (envelope + interfaces, no DTOs) deferred the question because zero implementations existed; Slice 8a forced the resolution by being the first concrete DTO.
 
 ### Decision 2: Mutually Exclusive Serialization Interfaces
 
@@ -394,7 +409,7 @@ Note on commit and handler predicates: Save consults these before every write. I
 
 **For new systems (all other MVP GDDs):**
 
-- Declare DTO with `const string SystemId` + `const int SchemaVersion`.
+- Declare DTO with `const string SYSTEM_ID` + `const int SCHEMA_VERSION` (UPPER_SNAKE_CASE; Slice 8a amendment); the instance properties on the interface read from the consts.
 - Implement either `IRunStateSerializable` or `IMasteryStateSerializable` — never both.
 - Use `SaveSystem.ComputeEnvelopeChecksum` and `SaveSystem.NowTimestamp` helpers; never roll your own.
 - DTO class goes in `WastelandRun.Save.Dtos` namespace for `link.xml` preservation.
@@ -421,7 +436,7 @@ This ADR is considered successfully implemented when:
 - [ ] `SaveSystem` public API matches the Key Interfaces locked above.
 - [ ] `IRunStateSerializable` and `IMasteryStateSerializable` exist as distinct interfaces; `InterfaceExclusion_test` is in CI and green.
 - [ ] `SchemaRegistry_Unique_test` scans all DTOs and passes; CI green.
-- [ ] Every DTO class declares `const string SystemId` + `const int SchemaVersion`.
+- [ ] Every DTO class declares `const string SYSTEM_ID` + `const int SCHEMA_VERSION` (UPPER_SNAKE_CASE; Slice 8a amendment) with PascalCase instance-property accessors satisfying the marker interface.
 - [ ] Envelope schema matches Decision 5 exactly; `ComputeEnvelopeChecksum_fixture_test` passes.
 - [ ] All writes (except `Application.quitting` and launch-time recovery) execute on background `Task`; code review confirms no main-thread `File.Write*` calls in `Assets/Scripts/Save/` except in the two documented exceptions.
 - [ ] `.tmp` files written to `temporaryCachePath`; `.sav` and `.bak` in `persistentDataPath/saves/`.
