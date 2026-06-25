@@ -10,7 +10,11 @@ Accepted
 
 ## Last Verified
 
-2026-04-24
+2026-06-25 (Slice 8c Amendment Addendum: `DtoType` lifted as third static-surface element on `IRunStateSerializable` / `IMasteryStateSerializable` — see Decision 1)
+
+2026-06-25 (Slice 8c Amendment: Resume Atomicity grouping + `RunSeedDto` lands as the second RunState DTO, alongside `NodeMapDto`)
+
+2026-06-24 (Slice 8b Amendment: single-consumer Task + `ConcurrentQueue` + `ISaveStorage` injection seam + composite payload per category with per-DTO partial-skip)
 
 ## Decision Makers
 
@@ -20,7 +24,7 @@ Accepted
 
 ## Summary
 
-Save is a **passive orchestrator**. Each gameplay system owns its own Data Transfer Object (DTO) and `Serialize()/Deserialize()` pair; Save composes them into a versioned envelope, writes atomically via temp-then-rename on a background `Task`, and provides a **per-category independent recovery chain** (live → orphaned temp → N=1 backup). The **schema registry is distributed** — `const string SystemId` + `const int SchemaVersion` live on each DTO class, not in a central registry file. Partial-load failure policy is category-asymmetric: exhausted RunState → non-blocking "start new run"; exhausted MasteryState → blocking dialog requiring explicit player consent before reset. `RunSeed` is persisted in the RunState envelope so deterministic replay (per ADR-0003) survives quit/resume.
+Save is a **passive orchestrator**. Each gameplay system owns its own Data Transfer Object (DTO) and `Serialize()/Deserialize()` pair; Save composes them into a **per-category composite envelope** (one `runstate.sav` containing all RunState DTOs keyed by `SystemId`; one `masterystate.sav` for MasteryState — Slice 8b Amendment 2026-06-24), writes atomically via temp-then-rename through an `ISaveStorage` injection seam on a **single long-lived consumer Task draining a `ConcurrentQueue<WriteIntent>`** (Slice 8b Amendment 2026-06-24), and provides a **per-category independent recovery chain** (live → orphaned temp → N=1 backup) with **per-DTO partial-skip on schema mismatch *inside* the envelope** (Slice 8b Amendment 2026-06-24). The **schema registry is distributed** — `const string SystemId` + `const int SchemaVersion` live on each DTO class, not in a central registry file. Partial-load failure policy is category-asymmetric: exhausted RunState → non-blocking "start new run"; exhausted MasteryState → blocking dialog requiring explicit player consent before reset. `RunSeed` is persisted in the RunState envelope so deterministic replay (per ADR-0003) survives quit/resume.
 
 ## Engine Compatibility
 
@@ -115,6 +119,29 @@ public sealed class NodeMapDto : IRunStateSerializable
 
 The naming conventions above were locked at Slice 8a (first real DTO landing) when the const-vs-property collision surfaced. Slice 8 (envelope + interfaces, no DTOs) deferred the question because zero implementations existed; Slice 8a forced the resolution by being the first concrete DTO.
 
+**Slice 8c Amendment Addendum (2026-06-25) — `DtoType` is the third static-surface element.**
+
+The interface contract surfaces **three** static elements that the load path consults before any live source exists: `SystemId`, `SchemaVersion`, and `DtoType`. `DtoType` is the runtime `System.Type` of the DTO this handler produces / consumes (e.g. `typeof(NodeMapDto)`).
+
+```csharp
+public interface IRunStateSerializable
+{
+    string SystemId      { get; }
+    int    SchemaVersion { get; }
+    Type   DtoType       { get; }  // Slice 8c Amendment Addendum
+    object ToDto();
+    void   FromDto(object dto);
+}
+```
+
+**Rules:**
+
+- `DtoType` must equal the runtime type returned by `ToDto()` when `ToDto()` succeeds — never a base type, never an interface, never `null`.
+- `DtoType` must be resolvable before any live source exists. Adapters that project DTOs off a live `Func<TLiveSource>` (e.g. `NodeMapSerializable`, `RunSeedSerializable`) guard `ToDto()` against a null source and throw on misuse; the load path uses `DtoType` instead of `ToDto().GetType()` so type discovery does not trip the wiring guard.
+- A new CI test (`SchemaRegistry_DtoType_test` — sibling of `SchemaRegistry_Unique_test`) asserts the equality `handler.DtoType == handler.ToDto().GetType()` on every registered serializable whose `ToDto` is safe to invoke without setup (DTOs that act as their own handle). Adapters with ctor-injected live sources are covered by integration tests (`RunSceneHost_Resume_Test`).
+
+**Rationale:** Slice 8b-3 introduced snapshot-on-demand adapters that legitimately guard `ToDto()` against null live sources (write-path correctness — fail-fast on orchestrator wiring traps). Slice 8c shipped the load path that needed entry-type discovery before any controller exists. Discovering type via `ToDto().GetType()` couples write-time projection to type discovery, then breaks when the write-path guard fires during load. Lifting `DtoType` decouples the two responsibilities cleanly — load reads a pure static surface, write keeps its guard. Considered alternatives (probe-DTO static factory, `bool TryToDto(out object)`, polymorphic `IRunStateSerializable<TDto>`) were rejected: each added either a parallel registration mechanism, a weakened write contract, or generic-dispatch bloat — without removing the original method. `DtoType` is a single net-new interface member; no overload pair (no ADR-0011 #5), no bimodal path (no #3), no stub return (no #6).
+
 ### Decision 2: Mutually Exclusive Serialization Interfaces
 
 **`IRunStateSerializable` and `IMasteryStateSerializable` are declared disjoint.** A class may not implement both.
@@ -122,10 +149,11 @@ The naming conventions above were locked at Slice 8a (first real DTO landing) wh
 ```csharp
 public interface IRunStateSerializable
 {
-    string SystemId { get; }
+    string SystemId      { get; }
     int    SchemaVersion { get; }
-    object ToDto();             // returns system-specific DTO
-    void   FromDto(object dto); // consumes same shape
+    Type   DtoType       { get; } // Slice 8c Amendment Addendum — see Decision 1
+    object ToDto();               // returns system-specific DTO
+    void   FromDto(object dto);   // consumes same shape
 }
 
 public interface IMasteryStateSerializable
@@ -138,18 +166,28 @@ public interface IMasteryStateSerializable
 
 **Rationale:** GDD R1 says a system's state is either run-scoped or cross-run-persistent — never both. Dividing this contract at the interface level (rather than by convention) makes misuse a compile- or CI-time failure, not a runtime corruption pattern discovered in production.
 
-### Decision 3: Atomic Write — Background Task + Temp-in-`temporaryCachePath` + `File.Move` with `overwrite: true`
+### Decision 3: Atomic Write — Single-Consumer Background Task + Temp-in-`temporaryCachePath` + `File.Move` with `overwrite: true`
 
 **The write sequence:**
 
-1. Main thread enqueues write intent on a thread-safe queue.
-2. Background writer thread dequeues, calls each system's `ToDto()` under a single `try`/`catch`. Any exception mid-assembly → abort write, preserve live `.sav`, log `SaveAssemblyFailedException`.
-3. Background writer serializes the envelope to JSON bytes via Newtonsoft (canonical serialization: sorted property order, UTF-8, no indentation, no trailing whitespace).
-4. Write bytes to `Application.temporaryCachePath/[filename].tmp` via `FileStream` with `FileMode.Create`, `FileShare.None`. Call `Flush(flushToDisk: true)` before closing.
+1. Main thread enqueues a `WriteIntent` on a `ConcurrentQueue<WriteIntent>`. (Slice 8b Amendment 2026-06-24: was "thread-safe queue" generically; locked to `ConcurrentQueue<WriteIntent>` with one long-lived consumer Task.)
+2. The **single long-lived consumer Task** dequeues, applies coalescing (drop queued writes for the same `SystemId` if a newer one is already pending — see Coalescing below), calls each system's `ToDto()` under a single `try`/`catch`. Any exception mid-assembly → abort write, preserve live `.sav`, log `SaveAssemblyFailedException`.
+3. Consumer serializes the envelope to JSON bytes via Newtonsoft (canonical serialization: sorted property order, UTF-8, no indentation, no trailing whitespace).
+4. Write bytes to `ISaveStorage.TempDir/[filename].tmp` via `ISaveStorage.OpenWrite` (`FileMode.Create`, `FileShare.None` semantics for `DiskSaveStorage`). Call `Flush(flushToDisk: true)` before closing. (Slice 8b Amendment 2026-06-24: path access wrapped behind `ISaveStorage`; no direct `Application.temporaryCachePath` reference outside `DiskSaveStorage`.)
 5. Validate `.tmp` checksum by re-reading and recomputing.
-6. Rotate `.bak` (delete `.bak`, rename `.sav` → `.bak`).
-7. `File.Move(tmpPath, targetPath, overwrite: true)` — the atomic rename.
-8. Background writer reports completion on a main-thread-pumped callback.
+6. Rotate `.bak` (delete `.bak`, rename `.sav` → `.bak`) via `ISaveStorage.Move` / `ISaveStorage.Delete`.
+7. `ISaveStorage.Move(tmpPath, targetPath, overwrite: true)` — the atomic rename.
+8. Consumer reports completion on a main-thread-pumped callback.
+
+**Single-consumer rationale (Slice 8b Amendment 2026-06-24):**
+
+The background writer is locked to **one long-lived consumer Task**, not per-write `Task.Run`. Three reasons make this load-bearing for ADR-0004's contract:
+
+1. **Ordering.** ADR-0004's "last-write-wins per category" is only structurally true with one consumer. With `Task.Run` per write, the .NET ThreadPool can schedule an older write *after* a newer one, silently corrupting "newest state wins" — a class of race that wouldn't fail a unit test but would produce wrong saves under load.
+2. **Coalescing.** A single consumer can inspect the queue and drop a queued write if a newer write for the same `SystemId` is already pending. This gives free debounce for the periodic-idle-flush trigger (GDD R2) — repeated rapid enqueues collapse to one disk write — without each call site having to coordinate.
+3. **Bounded retry-park.** The 5×exponential retry budget can pin a thread for up to ~7.75s on a wedged file lock (antivirus hold, Defender real-time scan). With per-write `Task.Run`, N queued writes during a stuck handle = N parked ThreadPool threads. With one consumer, one thread parks; the queue absorbs further enqueues at zero thread cost.
+
+**Cost:** one always-on background thread. Acceptable — it spends 99.9% of its life on a queue wait. Documented in Performance Implications.
 
 **Two exceptions to background execution:**
 
@@ -190,18 +228,22 @@ public interface IMasteryStateSerializable
 - **All envelope- or checksum-level failures are silent chain progressions.** No user is shown "save 1 of 3 failed" — they see the final category-level outcome only.
 - **Exhausted chain** → category-asymmetric as above (non-blocking for RunState, blocking for MasteryState).
 
-### Decision 5: Envelope Contract — Version + Checksum + System-Owned Payload
+### Decision 5: Envelope Contract — Composite Payload per Category + Version + Checksum
 
-**Every DTO is wrapped in this envelope before serialization:**
+**(Slice 8b Amendment 2026-06-24) The envelope wraps one *category* (RunState or MasteryState), not one DTO. Its payload is a composite map keyed by `SystemId`, with each entry self-describing its schema version inline.**
 
 ```json
 {
   "envelope_version": 1,
-  "system":           "loot-reward",
+  "system":           "run_state",
   "schema_version":   1,
   "written_at":       "2026-04-24T14:32:01.123Z",
   "checksum":         "a3f5c8...",
-  "payload":          { ... system-owned DTO ... }
+  "payload": {
+    "run.node_map": { "schema_version": 1, "...node map fields...": "..." },
+    "run.deck":     { "schema_version": 1, "...deck fields...":     "..." },
+    "run.scrap":    { "schema_version": 1, "...scrap fields...":    "..." }
+  }
 }
 ```
 
@@ -210,11 +252,54 @@ public interface IMasteryStateSerializable
 | Field | Type | Semantic |
 |-------|------|----------|
 | `envelope_version` | int | Reserved for envelope-level schema changes (e.g., adding a new field like `locale`). `=1` for all EA releases. Higher envelope_version than current code → treated as incompatible, skip candidate. |
-| `system` | string | Matches the DTO's `SystemId` constant. Used for load-time routing to the correct `FromDto` handler. |
-| `schema_version` | int | Matches the DTO's `SchemaVersion` constant. Schema mismatch handling per GDD R5. |
+| `system` | string | **(Slice 8b Amendment 2026-06-24)** Category name: `"run_state"` or `"mastery_state"`. NOT a DTO's `SystemId`. The single-DTO-per-envelope shape was rejected — see "Composite payload rationale" below. |
+| `schema_version` | int | **(Slice 8b Amendment 2026-06-24)** Envelope spec version. Distinct from the per-DTO `schema_version` values inside `payload`. `=1` for all EA releases. |
 | `written_at` | string | ISO 8601 UTC, millisecond precision (`yyyy-MM-ddTHH:mm:ss.fffZ`). Owned by `SaveSystem.NowTimestamp()`. |
-| `checksum` | string | SHA-256 hex over the canonical serialization of the envelope **excluding the `checksum` field itself**. Owned by `SaveSystem.ComputeEnvelopeChecksum()`. |
-| `payload` | object | System-owned DTO. Save has no schema knowledge of its internals. |
+| `checksum` | string | SHA-256 hex over the canonical serialization of the envelope **excluding the `checksum` field itself**. Owned by `SaveSystem.ComputeEnvelopeChecksum()`. Covers the whole composite payload — one integrity signal per category. |
+| `payload` | object | **(Slice 8b Amendment 2026-06-24)** Composite map: key = DTO `SystemId` (e.g., `"run.node_map"`), value = DTO with an inline `schema_version` field. Save composes DTOs by reading each registered serializable's `SystemId` and inserting `ToDto()` under that key. |
+
+**Per-DTO wire encoding (Slice 8b Amendment 2026-06-24):**
+
+- `SystemId` stays `[JsonIgnore]` on DTOs — the map key in `payload` *is* the SystemId; repeating it inside would create the drift vector ADR-0011 #2 forbids.
+- `SchemaVersion` lifts to a serialized property on each DTO (drop `[JsonIgnore]` from the interface property's implementation; serialized as `schema_version` snake_case). This is the self-describing per-entry version the load path compares against the current `SCHEMA_VERSION` const.
+
+**Per-DTO schema-mismatch behavior (Slice 8b Amendment 2026-06-24):**
+
+When loading, each entry in `payload` is matched against the corresponding registered serializable's `SCHEMA_VERSION`:
+
+- **Match** → handler `FromDto` is invoked; entry rehydrates.
+- **Mismatch (either direction)** → that entry is silently skipped; sibling entries continue loading. The category load returns success with the surviving entries hydrated and the skipped systems left in their default-constructed state. Skipped entries are logged as `SchemaMismatchSkipped` with `(SystemId, expected, actual)` for telemetry.
+- **Entry absent** (registered system has no entry in payload — new DTO added in a later patch) → handler not called; system stays at default-constructed state.
+- **Entry present but unregistered** (DTO removed from code but still in file — system retired post-patch) → entry silently ignored.
+
+This is **partial-skip at the entry layer, not the file layer**. The envelope itself remains valid; checksum holds; recovery chain does not advance to `.bak`. This preserves "live wins if checksum-valid" while letting individual systems evolve their schemas without forcing whole-category corruption fallback.
+
+**Resume Atomicity — DTOs may be declared a resume-atomic group (Slice 8c Amendment 2026-06-25):**
+
+Per-DTO partial-skip applies independently *unless* DTOs are declared a **resume-atomic group**. Resume-atomic DTOs **load together or regenerate together**: if any member is absent or schema-skipped, the resume path falls back to a fresh run for all members in the group. The envelope itself remains valid (the load chain does not advance to `.bak`); other resume-atomic groups and standalone DTOs in the same envelope still rehydrate normally.
+
+Resume-atomic groups are declared in this ADR. **First and only group at Slice 8c:**
+
+| Group | Members | Reason |
+|-------|---------|--------|
+| `run.seed_map` | `run.run_seed`, `run.node_map` | `NodeMap.MapSeed = RunSeed ^ 0x4D41` per ADR-0003. NodeMap rehydrated against a regenerated RunSeed would carry a `MapSeed` whose provenance no longer matches its own structure — every per-step derivation (`RunSeed ^ stepIndex ^ <salt>` per ADR-0003 Rule 3 / RunController) downstream would silently diverge from the no-crash counterfactual. Players would not notice individual rolls, but a run that crashes through a pity-counter boundary would silently desync. Both-or-neither is the only policy that preserves the **ADR-0003 `RunSeed ^ stepIndex` contract across save boundaries**. |
+
+**How resume-atomicity is enforced:** the bootstrap site that hands `LoadResult` to the run-orchestrator (Slice 8b-3 / 8c: `SaveBootstrap.LoadAndInitialize` → `RunSceneHost.Initialize`) is the single decision point. The orchestrator inspects `LoadResult.Outcome` + `LoadResult.SkippedSystemIds` against the declared groups; if any group is not whole, the orchestrator regenerates the entire group from scratch instead of rehydrating partial state. There is no per-DTO "rehydrate-or-regenerate" toggle on individual `IRunStateSerializable` implementations — provenance is the bootstrap's concern, not the controller's (ADR-0011 #3 avoidance).
+
+**Future groups must be declared in this ADR.** When the next coupled pair surfaces (likely `run.run_deck` + `run.combat_state` once those DTOs ship — a deck shuffle is meaningless without the matching combat seed it was drawn against), append a row to the table above. No `[ResumeAtomic]` attribute, no central manifest file — drift-resistance is preserved the same way Decision 1's schema registry stays drift-resistant (one ADR row, CI-light enforcement via the bootstrap decision site).
+
+**Cross-reference ADR-0003:** the `RunSeed ^ stepIndex` contract now explicitly **spans save boundaries**. The resume-atomic group above is the implementation mechanism — without it, a crash-recovered run would produce different combat shuffles, reward rolls, and card offers than its no-crash counterfactual, which is the exact class of silent determinism break ADR-0003 forbids. The `RunSeedDto_Resume_Preserves_Derived_Seeds` test (Slice 8c) locks the property end-to-end: load a known RunSeed, advance one step, assert `DeriveCombatSeed(stepIndex)` matches the pre-save value.
+
+**Composite payload rationale (Slice 8b Amendment 2026-06-24):**
+
+Decision 4 ("per-category" recovery chain) was correct; Decision 3's original wording was silent on per-DTO file layout. The per-DTO file layout (one `.sav` per DTO) was rejected because:
+
+1. **Atomicity.** One `File.Move` advances the entire run state as a unit. With N files, a crash between writes ships inconsistent state across DTOs (e.g., NodeMap advanced but RunDeck not — undefined runtime).
+2. **Recovery semantics.** ADR-0004's "live → orphaned tmp → bak" chain is one decision per category. N files = N independent chains = N×M (DTOs × rungs) corruption matrix, with no defined cross-DTO ordering on partial recovery.
+3. **Checksum coverage.** Envelope checksum covers the whole category as a unit. Per-DTO files mean per-DTO checksums and no cross-DTO integrity signal — a tampered file could pass its own checksum while contradicting siblings.
+4. **Steam Cloud.** One file ≈ one sync unit. N files multiply conflict-resolution surface.
+
+**Cost:** a single DTO schema bump rewrites the whole envelope on next save. Acceptable — the partial-skip rule above means schema bumps are not breaking events for sibling systems, and the envelope is small (~7–14 KB total).
 
 **Two and only two helpers Save provides:**
 
@@ -245,16 +330,18 @@ public interface IMasteryStateSerializable
 
 **Why not a binary format (Protobuf, MessagePack, FlatBuffers):** Save file total budget is ~7–14 KB per F3. Binary encoding saves maybe 2–3 KB — below noise. Meanwhile binary formats lose human-diffable debugging (invaluable during schema migrations), add IL2CPP codegen toolchain complexity, and require a separate editor tool to inspect saves. JSON wins on developer ergonomics at this scale.
 
-### Decision 7: `RunSeed` Persisted in RunState Envelope
+### Decision 7: `RunSeed` Persisted as `RunSeedDto` in the RunState Envelope (Slice 8c Amendment 2026-06-25)
 
-**`RunState.payload.run_seed: int` is the single authoritative RunSeed.**
+**`RunSeedDto` is the single authoritative carrier of `RunSeed`. It implements `IRunStateSerializable` with `SYSTEM_ID = "run.run_seed"` and `SCHEMA_VERSION = 1`. Its on-wire payload is a single int (`seed`).** Resume-atomically grouped with `run.node_map` (see Decision 4 "Resume Atomicity").
 
-- Established once at run-start by whatever subsystem creates the new run (Node Map generation per GDD C.3).
-- Persisted in every RunState write.
-- Loaded on resume; all subsequent seeded-call derivations (`RunSeed ^ nodeIndex` for Loot, `RunSeed ^ mapStepIndex` for Node Map regeneration if that ever occurs) recompute from this single field.
-- **Scoped seeds are NEVER persisted** — only the root `RunSeed`. This is a direct application of ADR-0003 Rule 3: scoped seeds are derived on demand at each seeded entry point. Persisting them would create two truths and permit drift.
+- Established once at run-start by `RunSceneHost.BeginNewRun` (which already seeds `RunController.StartRun`).
+- Persisted in every RunState write — `RunSeedDto` projects from the live `RunState.RunSeed` via the `RunSeedSerializable` adapter (mirrors the `NodeMapSerializable` snapshot-on-demand pattern, see Slice 8b-3).
+- Loaded on resume as part of the resume-atomic group; all subsequent seeded-call derivations (`RunSeed ^ stepIndex ^ <salt>` per ADR-0003 Rule 3, applied by `RunController.DeriveCombatSeed` / `DeriveRewardSeed` / `DeriveCardOfferSeed`) recompute from this single field. `NodeMap.MapSeed` is derived from `RunSeed ^ 0x4D41` at run-start and persisted as part of `NodeMapDto.map_seed` for on-disk completeness — but on resume, the two must agree (this is structurally guaranteed by the resume-atomic group).
+- **Scoped seeds are NEVER persisted as standalone DTOs** — only the root `RunSeed`. This is a direct application of ADR-0003 Rule 3: scoped seeds are derived on demand at each seeded entry point. Persisting them would create two truths and permit drift. (`NodeMap.MapSeed` is persisted *because the NodeMap structure depends on it*, not as an independent derivation source.)
 
-**Rationale:** ADR-0003's Validation Criterion for deterministic replay requires that a run can be suspended and resumed without changing any future RNG draw. Persisting only the root seed + the step indices already carried in gameplay state (current node, pity counters, traversal list) is sufficient to reconstruct every future draw exactly. This is the smallest serialization surface that preserves determinism.
+**Slice 8 history:** Decision 7's original Slice 8 wording placed `run_seed: int` at the top-level envelope (sibling to `payload`). The Slice 8b Amendment moved DTOs into a composite payload map keyed by `SystemId`. RunSeed was deferred at Slice 8b-3 (TD verdict Q3) so that "land an int in a DTO" wouldn't bundle into the bootstrap+triggers slice. Slice 8c lands it as `RunSeedDto` under the composite-payload contract — same data, single DTO shape, consistent with every other RunState system.
+
+**Rationale:** ADR-0003's Validation Criterion for deterministic replay requires that a run can be suspended and resumed without changing any future RNG draw. Persisting only the root seed + the step indices already carried in gameplay state (current node, pity counters, traversal list) is sufficient to reconstruct every future draw exactly. This is the smallest serialization surface that preserves determinism. The resume-atomic grouping with `run.node_map` (Decision 4) is what makes "preserves determinism" hold across the save boundary — without it, RunSeed alone could resume but the NodeMap it was paired with might not, leading to seed/map provenance drift.
 
 ---
 
@@ -299,15 +386,45 @@ public static class SaveSystem
 public sealed class Envelope
 {
     public int     envelope_version;
-    public string  system;
-    public int     schema_version;
+    public string  system;            // (Slice 8b Amendment 2026-06-24) category name: "run_state" or "mastery_state" — NOT a DTO SystemId
+    public int     schema_version;    // envelope spec version, distinct from per-DTO schema versions
     public string  written_at;
     public string  checksum;
-    public object  payload;
+    public object  payload;           // (Slice 8b Amendment 2026-06-24) composite map: SystemId → DTO-with-inline-schema_version
+}
+
+// (Slice 8b Amendment 2026-06-24) ISaveStorage — injection seam for filesystem ops.
+// ADR-0011 exception #4 (polymorphism via interface, real product/test divergence).
+// Production: DiskSaveStorage takes liveDir/tempDir as ctor strings — Save asmdef
+// stays `noEngineReferences: true` (ADR-0002 POCO-purity lineage).
+// Tests: InMemorySaveStorage (RAM-backed) or DiskSaveStorage with Path.GetTempPath()
+// directories for write-path tests that need real bytes.
+// No SetSavesRoot(string) toggle — bimodal-path bridge, forbidden by ADR-0011 #3.
+internal interface ISaveStorage
+{
+    string LiveDir { get; }           // bootstrap injects: Application.persistentDataPath/saves
+    string TempDir { get; }           // bootstrap injects: Application.temporaryCachePath
+    Stream OpenWrite(string path);
+    Stream OpenRead(string path);
+    void Move(string src, string dst, bool overwrite);
+    bool Exists(string path);
+    void Delete(string path);
 }
 ```
 
 Note on commit and handler predicates: Save consults these before every write. If either returns `true`, the write is deferred until both return `false` (retrofit contract from GDD R2 / NE handler save-block / `INodeMapSerializable.IsCommitInProgress`). This keeps Save free of schema knowledge while honoring the per-system write gates.
+
+**Note on `ISaveStorage` (Slice 8b Amendment 2026-06-24, ratified by 2026-06-24 TD round):** `SaveSystem` takes `ISaveStorage` via `SaveSystem.Bind(ISaveStorage)` called once at game-init. The Save assembly stays `noEngineReferences: true` per ADR-0002 POCO-purity lineage — `DiskSaveStorage` does NOT call `UnityEngine.Application`. Instead, a Unity-aware bootstrap in the view layer (CombatView / Slice 8b-3 `RunSceneHost`) resolves `Application.persistentDataPath` + `Application.temporaryCachePath` and passes them to `DiskSaveStorage`'s ctor:
+
+```csharp
+// In CombatView (RunSceneHost or a tiny SaveBootstrap), one place in the codebase:
+var storage = new DiskSaveStorage(
+    liveDir: Path.Combine(Application.persistentDataPath, "saves"),
+    tempDir: Application.temporaryCachePath);
+SaveSystem.Bind(storage);
+```
+
+Tests construct `SaveSystem` directly with `InMemorySaveStorage` or a `Path.GetTempPath() + Guid` directory under `DiskSaveStorage`. This is **injection, not toggle** — there is no runtime decision to "use real or fake storage"; the binding is set at game-init once and never inspected. The CI grep gate (Validation Criteria + Risks row) constrains `Application.persistentDataPath` / `Application.temporaryCachePath` references to the bootstrap site only.
 
 ## Alternatives Considered
 
@@ -380,6 +497,8 @@ Note on commit and handler predicates: Save consults these before every write. I
 | Steam Cloud last-write-wins inversion on multi-machine play | MEDIUM | MEDIUM (progress appears to rewind) | GDD OQ3 documented as accepted limitation. Store page copy will note multi-machine caveat. Merge strategy deferred to post-EA. |
 | `CompanyName` / `ProductName` changed post-EA — silently relocates `persistentDataPath`, orphans all saves | LOW | CATASTROPHIC (every player loses all saves on patch) | CI check (GDD EC10) compares `ProjectSettings.asset` to the baseline in tech-prefs "Project Identity" section (to be added before EA ship). Mismatch = build fails. |
 | Developer adds a write helper that doesn't go through `SaveSystem.EnqueueRunStateWrite` — bypasses background task | LOW | MEDIUM (main-thread stall regression) | Code review convention: all file writes in `Assets/Scripts/Save/` namespace. `File.Write*` grep over the rest of the codebase as part of CI. |
+| **(Slice 8b Amendment 2026-06-24)** Single-consumer Task wedged on a stuck file lock past the 7.75s retry budget — queue grows unbounded under sustained enqueues | LOW | MEDIUM (memory growth + delayed writes) | Coalescing rule (Decision 3) already drops queued duplicates per `SystemId`, so growth is bounded by the count of distinct categories × pending writes. Add soft-limit telemetry: `SaveSystem.QueueDepth` gauge; warn at depth >32. If a real wedge surfaces post-EA, escalate to fault tooling. |
+| **(Slice 8b Amendment 2026-06-24)** `Application.persistentDataPath` reference leaks outside the CombatView bootstrap site via a copy-paste or a "just this once" call site | MEDIUM | HIGH (CI batchmode test seam breaks; "works in editor, fails in tests" drift) | CI grep gate on `Application.persistentDataPath` and `Application.temporaryCachePath` — only the single bootstrap file in CombatView may reference them. Save asmdef stays `noEngineReferences: true` (compile-time backstop — Save code cannot even attempt these calls). Test failure names the offending file. Same mitigation pattern as ADR-0011 #1 forbidden-pattern grep. |
 
 ## Performance Implications
 
@@ -450,6 +569,13 @@ This ADR is considered successfully implemented when:
 - [ ] `Project Identity` section added to `.claude/docs/technical-preferences.md` locking `CompanyName` + `ProductName`; CI check in place.
 - [ ] Integration tests for EC2 (sharing violation), EC3 (disk full), EC9 (orphaned temp), EC13 (run-end crash window) pass using `InjectFault` tooling.
 - [ ] Formula verification ACs pass (20-node run = 20 RunState writes in the no-flush-no-quit case; 14 combat nodes = 14 MasteryState writes).
+- [ ] **(Slice 8b Amendment 2026-06-24)** `ISaveStorage` injection seam present; Save asmdef stays `noEngineReferences: true` (ADR-0002 POCO-purity lineage); zero `Application.persistentDataPath` / `Application.temporaryCachePath` references outside the CombatView bootstrap site (typically `RunSceneHost.Awake()`). CI grep gate scopes "outside one bootstrap file."
+- [ ] **(Slice 8b Amendment 2026-06-24)** Single-consumer ordering test: N concurrent enqueues for the same `SystemId` produce one disk write (coalesced) whose payload reflects the last enqueued state.
+- [ ] **(Slice 8b Amendment 2026-06-24)** Composite-payload partial-skip test: an envelope with one entry at a wrong `schema_version` rehydrates sibling entries fully and leaves the mismatched entry at default-constructed state; load result reports skipped `SystemId`.
+- [ ] **(Slice 8b Amendment 2026-06-24)** Recovery-chain test exercises all three rungs (live → orphaned tmp → bak) using `InMemorySaveStorage`; trigger tests for 8b-3 hit no filesystem at all.
+- [ ] **(Slice 8c Amendment 2026-06-25)** `RunSeedDto` ships in `WastelandRun.Save.Dtos` with `SYSTEM_ID = "run.run_seed"` + `SCHEMA_VERSION = 1`; round-trip test covers wire shape + canonical JSON; `SchemaRegistry_Unique_test` passes with the new ID.
+- [ ] **(Slice 8c Amendment 2026-06-25)** `RunSeedSerializable` adapter projects fresh DTOs off `Func<RunState>` per call (mirrors `NodeMapSerializable`); adapter test covers SystemId/SchemaVersion forwarding, fresh-projection invariant, live-source closure mutation, null-source throw, FromDto `LastLoaded` capture.
+- [ ] **(Slice 8c Amendment 2026-06-25)** `RunSceneHost.Initialize(LoadResult)` enforces the `run.seed_map` resume-atomic group: both `run.run_seed` and `run.node_map` loaded ∧ neither in `SkippedSystemIds` → rehydrate via internal `BeginRunFromLoaded(seed, map)`; otherwise → fresh `BeginNewRun(null)`. Tests cover happy resume, mixed-skip both-or-neither fallback, and the determinism proof (`RunSeed_Resume_Preserves_Derived_Seeds`: same `DeriveCombatSeed(stepIndex)` post-resume as pre-save).
 
 ## GDD Requirements Addressed
 
