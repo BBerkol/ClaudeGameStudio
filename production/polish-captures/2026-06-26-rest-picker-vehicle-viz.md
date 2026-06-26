@@ -360,4 +360,16 @@ Files touched by Phase 5a (this commit):
 Files Phase 5b will touch:
 - `Assets/Editor/CombatPrefabAuthor.cs` — `AuthorScene` cross-prefab wire-up block.
 
+### Phase 5b shipped (Wasteland Run commit `401c155`)
+
+`AuthorCombatScene` now captures the instantiated `Combat.prefab` and `Run.prefab` as `combatInstance` / `runInstance`, then calls a new private static helper `WireRestPickerCrossPrefab(combatInstance, runInstance)` before `MarkSceneDirty`. The helper:
+
+1. Resolves four scene-instance Transforms via `transform.Find` — `LaneAxis/PlayerVehicle`, `LaneAxis/PlayerBarStackCanvas` (Combat.prefab), `RestVisuals` (Combat.prefab), `RestPicker` (Run.prefab). Each resolution failure emits a `Debug.LogError` and bails before any partial wire-up.
+2. Fetches the five components needed on those transforms (`RestPickerController`, `VehicleVisual`, `VehicleRestPose`, `VehicleBarStack` via `GetComponentInChildren(includeInactive: true)`, `RestSceneBackdrop`); same null-check pattern.
+3. Writes the four `RestPickerController` SerializeFields via `SerializedObject` + `ApplyModifiedPropertiesWithoutUndo`.
+
+EditMode batchmode: 701/702 passed, 0 failed, 1 pre-existing skip — same baseline as Phase 5a. No new tests added; the wire-up is exercised end-to-end by the author menu + PlayMode eyeball.
+
+**Remaining to close Slice 9b**: PlayMode eyeball + screenshot evidence in `production/qa/evidence/` covering (a) chase rail vanishes on Rest arrival, (b) vehicle re-poses (no wheel spin, no chassis bounce), (c) damaged-slot hit zones glow on hover, (d) click commits +25 HP and reveals Continue, (e) Continue dismisses picker and chase rail returns. Non-blocking: ADR-0014 one-line amendment recording the "view-orchestrator controllers live in CombatView" precedent; ADR-0016 candidate for `Combat.prefab` → `SceneDiorama.prefab` rename when Slice 10+ adds a 2nd beacon backdrop.
+
 
