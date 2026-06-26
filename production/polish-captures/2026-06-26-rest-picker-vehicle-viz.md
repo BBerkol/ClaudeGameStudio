@@ -372,4 +372,26 @@ EditMode batchmode: 701/702 passed, 0 failed, 1 pre-existing skip — same basel
 
 **Remaining to close Slice 9b**: PlayMode eyeball + screenshot evidence in `production/qa/evidence/` covering (a) chase rail vanishes on Rest arrival, (b) vehicle re-poses (no wheel spin, no chassis bounce), (c) damaged-slot hit zones glow on hover, (d) click commits +25 HP and reveals Continue, (e) Continue dismisses picker and chase rail returns. Non-blocking: ADR-0014 one-line amendment recording the "view-orchestrator controllers live in CombatView" precedent; ADR-0016 candidate for `Combat.prefab` → `SceneDiorama.prefab` rename when Slice 10+ adds a 2nd beacon backdrop.
 
+### Phase 2a authoring-gap fix (Wasteland Run commit `ee03997`)
+
+**Surfaced by first PlayMode run after the Phase 5b commits:** picker drew but combat sky / mountains / ground / dust all stayed visible behind it, both vehicles kept moving, HP bars + enemy intent HUD stayed lit. AuthorCombatScene logged:
+
+> `[CombatPrefabAuthor] AuthorCombatScene cross-prefab wire-up: missing components on scene-instance (RestPickerController=True, VehicleVisual=True, VehicleRestPose=False, VehicleBarStack=True, RestSceneBackdrop=True). Source prefabs are out of date — re-author Combat + Run prefabs and try again.`
+
+**Root cause:** the same authoring-gap pattern that hit Phase 2b (`RestSceneBackdrop` component existed in code but was never authored onto a prefab — closed by Phase 5a). Phase 2a is the symmetric gap: `VehicleRestPose.cs` exists at `Assets/Scripts/CombatView/`, but **no** AuthorXxx method mounted `AddComponent<VehicleRestPose>()` onto PlayerVehicle.prefab. `WireRestPickerCrossPrefab.GetComponent<VehicleRestPose>()` returned null, the two-layer null-check tripped, and the wire-up bailed before any of the four SerializeFields were written — picker compiled + activated but every cross-prefab ref was `{fileID: 0}`, so `_restSceneBackdrop.Show()` / `_vehicleRestPose.Show()` / `_playerBarStack.BindForRest(...)` all silently no-op'd on the null-guards inside `RestPickerController.Show`.
+
+**Fix:** added `root.AddComponent<VehicleRestPose>();` immediately after `VehicleMotionState` in `BuildVehicleScaffold` (`CombatPrefabAuthor.cs:4397`). Lands on all four vehicle scaffolds (PlayerVehicle + 3 enemy archetypes) — inert on enemies (only ever invoked by `RestPickerController.Show` on the player) but kept on the scaffold for symmetry with the other motion components (`WheelSpinner` / `WheelBounce` / `ChassisBounce`) and so future "boss reflects on you" / "rest mid-encounter" mechanics have the component already in place.
+
+EditMode batchmode: 701/702 passed, 0 failed, 1 pre-existing skip.
+
+**Author-menu re-run sequence to close the loop:**
+
+1. Author PlayerVehicle Prefab — bakes `VehicleRestPose`
+2. Author Enemy Archetype Prefabs — bakes `VehicleRestPose` on Dune Skimmer / Iron Shepherd / Dredge (inert, but the scaffold change touches them too)
+3. Author Combat Prefab — re-baked so the nested PlayerVehicle.prefab override block stays clean
+4. Author Run Prefab — no expected change, safe to skip if the user prefers
+5. Author Combat Scene — `WireRestPickerCrossPrefab` now resolves all five components and writes the four SerializeFields
+
+**Pattern recognition (forward-looking):** two authoring gaps in two phases of the same slice points at a process gap, not two unrelated bugs. The original Slice 9b plan listed "Phase 2 — VehicleRestPose + RestSceneBackdrop components land in code AND on the relevant prefabs." Both halves shipped in code; neither shipped on the prefabs. Future slices that add a new MonoBehaviour to a prefab-mounted seam should land the `AddComponent` call in `CombatPrefabAuthor.cs` in the same commit as the component file. Memory entry to add: `feedback_component_authoring_is_part_of_component_creation` — when a new component is added to a slice, the author-script edit is part of the same commit, not a follow-up.
+
 
