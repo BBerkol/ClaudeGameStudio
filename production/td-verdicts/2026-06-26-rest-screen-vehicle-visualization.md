@@ -72,3 +72,11 @@ This is approve-with-constraints because **the canonical pieces all exist**; we'
 - Phase 3's subscription lifecycle is Bind/OnDestroy-paired (memory: `feedback_subscription_lifecycle_pairing`).
 - Capture-before-destroy fires on the UXML rewrite — list rows are about to go, capture the pre-rewrite UXML + controller into `production/polish-captures/2026-06-26-rest-picker-vehicle-viz.md` first.
 - EditMode tests stay green at every phase boundary (memory: `feedback_gate_check_requires_green_tests`).
+
+### Implementation files touched (per phase)
+
+- Phase 1: `Assets/Scripts/CombatView/VehicleBarStack.cs` (sibling verb + shared widget-build extraction)
+- Phase 2: `Assets/Scripts/CombatView/VehicleRestPose.cs` (new component on PlayerVehicle.prefab)
+- Phase 3: `Assets/Scripts/UI/RestPickerController.cs` (drop button-row, wire hit-zone subs + bar-stack bind)
+- Phase 4: `Assets/UI/RestPicker.uxml` + `Assets/UI/RestPicker.uss` (chrome-only shell)
+- Phase 5: `Assets/Editor/CombatPrefabAuthor.cs` (wire `_playerBarStack` + `_vehicleRestPose` refs)
