@@ -365,4 +365,285 @@ After v2 the bake captures every value the Explore agent surfaced from the
 live YAML — positions, scales, sprites, colors, structural absence. Designer
 can re-author with confidence that no Prefab Mode work is lost.
 
+---
+
+## v3 amendment (2026-06-30 — designer follow-up: DuneSkimmer weapon + hit zones)
+
+User re-opened DuneSkimmer in Prefab Mode after the v2 re-author and reported:
+
+> "i had changed the duneskimmers weapon to be a flamethrower but it reverted
+> back to the machine gun."
+
+> "i also see that the hitzones do not align with the visuals of duneskimmer.
+> we need to solve that."
+
+v2 bake covered the chassis sprite + tire scales + shadow footprint but missed
+the WeaponSlot sprite swap. v3 closes that gap and reopens hit zone alignment.
+
+### v3 — what the bake covers
+
+**1. WeaponSlot sprite override (NEW field)**
+
+`VehicleScaffoldSpec` gains:
+
+```csharp
+public string WeaponSlotSpriteName;  // overrides "machinegun" (DuneSkimmer uses "flamethrower")
+```
+
+`BuildVehicleScaffold` resolves once at the top of the method, alongside the
+existing `weapon3Sprite` override:
+
+```csharp
+Sprite weapon1Sprite = string.IsNullOrEmpty(spec.WeaponSlotSpriteName)
+    ? machineGunSprite
+    : LoadPsbSubSprite(VehicleBuggyPsbPath, spec.WeaponSlotSpriteName);
+```
+
+The primary WeaponSlot spawn now uses `weapon1Sprite` instead of the hardcoded
+`machineGunSprite`. Vehicles without the override are unchanged (null → MG).
+
+**2. DuneSkimmer spec — flamethrower override**
+
+`AuthorDuneSkimmer` gains one line under the v2 `FrameSpriteName` entry:
+
+```csharp
+WeaponSlotSpriteName = "flamethrower",
+```
+
+The hit zone GameObject keeps its legacy name `HitZone_MachineGun` (the name
+is a content tag, not a sprite reference) — only the visible art on
+`WeaponSlot` changes.
+
+**3. Hit zone alignment (designer Prefab Mode pass)**
+
+User flagged that DuneSkimmer's hit zones drift from the new chassis visual.
+v2 bake captured YAML-resident positions, but YAML and visuals disagreed —
+zones were positioned for the player chassis silhouette, not the smaller
+DuneSkimmer Frame.
+
+Designer reported they couldn't align by eye because hit zones are transparent
+`Image` rectangles — only an empty rect outline shows in Prefab Mode. To unblock
+visual alignment, `VehiclePartHitZone` gains an edit-mode preview overlay:
+
+- `[ExecuteAlways]` on the class.
+- `OnEnable` (edit mode only, guarded by `Application.isPlaying`) calls the
+  existing `EnsureTargetHoverOutline` to build the same alpha-traced yellow
+  silhouette the player sees on runtime hover, flagged `HideFlags.DontSave`
+  so it never persists into the prefab YAML.
+- `OnDisable` destroys the preview via `DestroyImmediate` so reopening Prefab
+  Mode rebuilds fresh.
+- `OnDrawGizmos` paints a colored wire box at the rect bounds — hue hashed
+  from the GO name so each zone is distinct.
+
+Designer outcome: yellow silhouette = part art, colored wire box = hit zone
+rect. Drag the rect until the box wraps the silhouette. Adjust `sizeDelta`
+to tighten. Texture readability required — flip via `Tools > Wasteland Run >
+Enable Read-Write on Vehicle Textures` when silhouettes don't appear.
+
+**4. DuneSkimmer hit zone retunes (v3 bake)**
+
+After the Prefab Mode pass:
+
+| Hit zone           | v2 pos                | v3 pos                | v2 size            | v3 size            |
+|--------------------|-----------------------|-----------------------|--------------------|--------------------|
+| HitZone_Flamethrower (was MachineGun) | (-1.819, 0.725)  | **(-1.802, 0.467)**   | (1.6833, 1.0096) seed | **(1.9164, 1.0414)** override |
+| HitZone_Engine     | (0.739, -0.65185)     | **(0.668, -0.65185)** | (1.1963, 1.1963) seed | unchanged (matches seed)  |
+| HitZone_Wheels     | (2.146, -0.880)       | unchanged             | (1.3396, 1.3396) seed | unchanged                 |
+| HitZone_WheelsRear | (-1.464, -0.880)      | **(-1.4423, -0.880)** | (1.4824, 1.4824) seed | **(1.1969, 1.1969)** override |
+| HitZone_Frame      | (-0.2197, -0.0101)    | **(0.0048, 0.0037)**  | (4.1784, 2.4798) override | **(4.5494, 2.2717)** override |
+
+All v3 values baked into `AuthorDuneSkimmer.HitZonePositions` /
+`HitZoneSizeDeltas` maps. Designer can re-author DuneSkimmer with zero loss.
+
+### Re-author sequence (post-v3 bake — single pass after both items land)
+
+1. Tools → Wasteland Run → Author Enemy Archetype Prefabs.
+2. Tools → Wasteland Run → Author Combat Prefab (refreshes nested refs).
+3. Tools → Wasteland Run → Author Run Prefab (rebakes `_combatBeaconArchetypes`
+   fileIDs — the DuneSkimmer prefab root gets a new fileID on every re-author,
+   so Run.prefab must be re-baked too or `SceneEncounterBuilder` throws
+   `no EnemyArchetypeBinder resolved for archetype 'DuneSkimmer'`).
+4. Enter Play Mode; verify DuneSkimmer shows the flamethrower sprite on
+   WeaponSlot and every hit zone visibly overlays the chassis part it
+   represents.
+5. Clear sentinel: `rm production/session-state/prefab-drift-pending.json`
+
 — `claude (continued from compaction)`, 2026-06-30
+
+## v4 amendment — full-prefab audit pass (2026-06-30 late)
+
+**Trigger**: User caught me cherry-picking what to bake in the v3 pass — Anchor
+positions for all 4 vehicles + DuneSkimmer HitZone_Wheels width/height were
+re-tuned in Prefab Mode and got silently squashed by re-author because I'd
+only audited the subsystem we'd been discussing (hit zone retunes), not the
+full prefab. User instruction now standing:
+
+> "go through the whole entire prefab and save when i say save to author dont
+> pick what you want to save."
+
+### Audit protocol shift (binding for all future pre-author bakes)
+
+When the designer signals "save" or equivalent done state, I MUST:
+
+1. Parse the YAML of every prefab they've touched in this session — not the
+   subset I think is in scope.
+2. For each named child (`Anchor_*`, `HitZone_*`, `WheelSlot*`, `SubsystemBar`,
+   `SubsystemMarker`, `MainBar`, decorations, etc.), pull `m_AnchoredPosition`
+   / `m_LocalPosition` / `m_SizeDelta` / `m_LocalScale` and diff against the
+   per-vehicle spec values in `CombatPrefabAuthor.cs`.
+3. Bake every divergence into the spec — even ones that weren't the topic of
+   the conversation.
+4. Document the bake table in this capture file (this section).
+
+### v4 audit findings
+
+Full-prefab YAML walk across the 4 vehicle prefabs (`PlayerVehicle`,
+`DuneSkimmer`, `IronShepherd`, `Dredge`). Anchor + hit zone positions
+cross-referenced against `AuthorPlayerVehicle` / `AuthorDuneSkimmer` /
+`AuthorIronShepherd` / `AuthorDredge` specs. **SubsystemMarker** nested
+prefab positions cross-referenced against `SeedHudAnchor`'s nesting code
+(previously unstamped — the squashed value).
+
+| Vehicle       | Divergence                                                                 |
+|---------------|----------------------------------------------------------------------------|
+| PlayerVehicle | All `Anchor_*` ✓ / hit zones use shared seeds ✓ / **markers needed bake** |
+| DuneSkimmer   | `Anchor_weapon_0` / `Anchor_engine_0` moved; `HitZone_Wheels` pos.y + size; markers needed bake |
+| IronShepherd  | All `Anchor_*` ✓ / hit zones ✓ / **markers needed bake**                  |
+| Dredge        | All `Anchor_*` ✓ / hit zone overrides ✓ / **markers needed bake**         |
+
+Three vehicles had ONLY marker drift; one (DuneSkimmer) had additional
+anchor + wheel-zone moves. None of these were on my v3 audit radar — only
+the SubsystemMarker bake was a brand-new authoring surface.
+
+### Baked changes (v4)
+
+**1. Global SubsystemMarker bake — `CombatPrefabAuthor.SeedHudAnchor`**
+
+Designer moved every nested `SubsystemMarker` instance across all 4 vehicles
+to `m_AnchoredPosition = (-55, -22)` in Prefab Mode (the marker had been at
+the bar origin (0, 0) by default). To bake without adding a per-vehicle
+override surface (user explicitly said *every* marker uses the same offset):
+
+- Added `MarkerLocalAnchoredPos = new Vector2(-55f, -22f)` static field on
+  `CombatPrefabAuthor`.
+- `SeedHudAnchor` now stamps the nested `SubsystemMarker` child's
+  `RectTransform.anchoredPosition` unconditionally after find-or-instantiate,
+  matching the `SeedMainBarAnchor` unconditional-stamp pattern.
+- If per-marker drift ever becomes a real requirement, add `MarkerPositions`
+  to `VehicleScaffoldSpec` (parallel to `AnchorPositions`) and route through
+  `ResolvePos`. Not added speculatively (ADR-0011).
+
+**2. Anchor anchoredPosition always-stamped — `CombatPrefabAuthor.SeedHudAnchor`**
+
+`SeedHudAnchor` previously set the parent `Anchor_{slotId}` RT's
+`anchoredPosition` only on the fresh branch (preserving designer overrides
+on re-author). Under the new audit protocol, drift must be captured in the
+spec BEFORE re-author — the unconditional stamp closes the loophole where
+designer-only Prefab Mode tweaks could survive across author runs. Aligns
+with `SeedMainBarAnchor`'s already-unconditional `transform.localPosition`
+stamp.
+
+**3. DuneSkimmer drift bake — `AuthorDuneSkimmer`**
+
+| Spec field            | v3 value                          | v4 baked value                    |
+|-----------------------|-----------------------------------|-----------------------------------|
+| `AnchorPositions weapon_0`   | `(-1.426, 1.036)`         | **`(-1.151, 1.036)`**             |
+| `AnchorPositions engine_0`   | `(1.384, -0.754)`         | **`(1.353, -0.833)`**             |
+| `HitZonePositions HitZone_Wheels` | `(2.146, -0.880)`     | **`(2.146, -0.8982)`**            |
+| `HitZoneSizeDeltas HitZone_Wheels` | not present (default `1.3396`) | **`(1.0858, 1.0858)` override** |
+
+DuneSkimmer's smaller front wheel silhouette doesn't need the full-size
+PlayerVehicle wheel hit zone — designer trimmed width/height ~19% to fit
+the visible tire.
+
+### Re-author sequence (v4 — supersedes v3 sequence)
+
+1. Tools → Wasteland Run → Author Player Vehicle Prefab.
+2. Tools → Wasteland Run → Author Enemy Archetype Prefabs (DuneSkimmer +
+   IronShepherd + Dredge).
+3. Tools → Wasteland Run → Author Combat Prefab.
+4. Tools → Wasteland Run → Author Run Prefab (rebakes `_combatBeaconArchetypes`
+   fileIDs).
+5. Enter Play Mode; verify on each vehicle:
+   - Every `Anchor_{slotId}` reads at its expected spec position.
+   - Every nested `SubsystemMarker` reads at `(-55, -22)` relative to its
+     anchor (top-left of the bar origin).
+   - DuneSkimmer hit zones overlay the visible part art (the front wheel
+     hit zone is now the trimmed `1.0858²` size).
+6. Clear sentinel: `rm production/session-state/prefab-drift-pending.json`.
+
+— `claude (continued)`, 2026-06-30 (v4 amendment — full-audit protocol)
+
+---
+
+## v5 Amendment — Bar Resize Pass + Author-Flow Hardening (2026-06-30)
+
+Two adjacent author-flow changes layered on top of the v4 audit:
+
+### 1. Bar size 2× → 0.75× tune-down
+
+Designer asked for "double the bar size" mid-session, then "0.25 smaller"
+once the doubled bars read as oversized in Play Mode. Final numbers:
+
+| Bar | PixelsPerHp | Height | Default footprint (30 HP) |
+|---|---|---|---|
+| **SubsystemBar** | 4 → 8 (unchanged in v5) | 10 → 20 (unchanged in v5) | 240 × 20 |
+| **MainBar** | 8 → 16 → **12** | 18 → 36 → **27** | **360 × 27** |
+
+**Nested-instance override pin (recurring trap):** Every vehicle's nested
+MainBar/SubsystemBar carries an explicit `sizeDelta` override in the
+PrefabInstance modifications block. Bumping the source prefab's authored
+size does NOT propagate through those overrides — the nested instance
+stays pinned at the old size. Mitigation lives in `SeedHudAnchor` and
+`SeedMainBarAnchor` as unconditional `sizeDelta` stamps using static
+readonly constants (`SubsystemBarLocalSize`, `MainBarLocalSize`), so the
+next vehicle re-author rewrites every nested override to the current
+source-prefab size. Any future resize follows: (a) edit the source-prefab
+author values, (b) edit the matching `*LocalSize` constant, (c) re-author
+all vehicles.
+
+### 2. Option B — extract binder-rebake helper
+
+**Trigger:** `InvalidOperationException: no EnemyArchetypeBinder resolved
+for archetype 'Dredge'` at combat start, after re-authoring vehicles.
+
+**Root cause:** `AuthorDuneSkimmer` / `AuthorIronShepherd` / `AuthorDredge`
+all do `AssetDatabase.DeleteAsset(...)` before rebuilding — every re-author
+mints a fresh GUID. `RunSceneHost._combatBeaconArchetypes` on Run.prefab
+still references the OLD GUIDs → null binder at resolution.
+
+**Fix (CombatPrefabAuthor.cs):**
+
+- Extracted the roster bake loop from `AuthorRun` into private
+  `BakeCombatBeaconArchetypes(RunSceneHost)` — one canonical site.
+- Added public `RebakeRunSceneHostArchetypes()` — uses
+  `PrefabUtility.LoadPrefabContents` + `SaveAsPrefabAsset` to re-bake
+  just the array off-disk, without rebuilding the whole Run.prefab.
+- `AuthorEnemyArchetypePrefabs` now calls `RebakeRunSceneHostArchetypes()`
+  after the three enemy authors. GUID churn can no longer outlive a
+  single menu invocation.
+
+**Effect:** The "re-author Run.prefab after touching enemies" foot-gun
+is removed for the grouped menu path. Individual `AuthorDuneSkimmer` /
+`AuthorIronShepherd` / `AuthorDredge` invocations still require a manual
+Run.prefab re-author (or call `RebakeRunSceneHostArchetypes()` directly)
+— intentional: those are surgical entrypoints, the grouped menu is the
+designer-facing one.
+
+### Updated re-author sequence
+
+(supersedes the v4 sequence at line 561-566)
+
+1. Author MainBar Prefab (if source `PixelsPerHp` / height changed).
+2. Author SubsystemBar Prefab (if source `PixelsPerHp` / height changed).
+3. Author Player Vehicle Prefab.
+4. Author Enemy Archetype Prefabs (DuneSkimmer + IronShepherd + Dredge
+   + **auto-rebakes `_combatBeaconArchetypes` on Run.prefab**).
+5. Author Combat Prefab.
+6. Author Run Prefab — only required if `playerVehicleAsset`,
+   `biomeDistribution`, or `playerVisualPrefab` source assets changed;
+   the binder array now auto-stays-fresh via step 4.
+
+— `claude (continued)`, 2026-06-30 (v5 amendment — bar resize + binder rebake helper)
+
+
