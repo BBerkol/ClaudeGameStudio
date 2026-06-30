@@ -71,5 +71,31 @@ if [ -f "$STATE_FILE" ]; then
     echo "=== END SESSION STATE PREVIEW ==="
 fi
 
+# --- Prefab drift sentinel preview ---
+DRIFT_FILE="production/session-state/prefab-drift-pending.json"
+if [ -f "$DRIFT_FILE" ]; then
+    echo ""
+    echo "=== PREFAB DRIFT PENDING ==="
+    echo "Designer-side prefab edits have NOT yet been baked into"
+    echo "CombatPrefabAuthor.cs. The pre-author-bake-required hook will fire"
+    echo "on every user prompt until this sentinel is cleared."
+    echo ""
+    if command -v jq >/dev/null 2>&1; then
+        jq -r '.pending // [] | .[] | "  - " + .' "$DRIFT_FILE" 2>/dev/null
+    elif command -v node >/dev/null 2>&1; then
+        node -e '
+            try {
+                const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+                (d.pending || []).forEach(v => console.log("  - " + v));
+            } catch (e) {}
+        ' "$DRIFT_FILE" 2>/dev/null
+    else
+        cat "$DRIFT_FILE" 2>/dev/null
+    fi
+    echo ""
+    echo "To clear: rm $DRIFT_FILE  (or edit to drop a specific vehicle)"
+    echo "=== END DRIFT PREVIEW ==="
+fi
+
 echo "==================================="
 exit 0
