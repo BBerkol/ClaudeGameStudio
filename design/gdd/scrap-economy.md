@@ -1199,7 +1199,7 @@ Each AC is testable. Gate level:
 | ~~AC-SE7b~~ | **SUPERSEDED (W5)** — Tenure system eliminated. `TenureMultiplier` and `combatsSurvived` no longer factor into ScrapRefund. AC-SE7 covers the static formula. | — |
 | ~~AC-SE7c~~ | **SUPERSEDED (W5)** — `TenureMultiplier` formula eliminated. See AC-SE7. | — |
 | AC-SE8 | Replace-scrap refund: `TryInstall` that replaces an existing part yields `ScrapRefund == 0` for the replaced part (per D.6 Replace-scrap exception — no refund on auto-replace). | L |
-| AC-SE9 | `FuelOut(ScrapIn=7)` returns 1 when `ScrapPerFuelRate == 4` (Floor rounding). Residual 3 Scrap is spent, not refunded. | L |
+| AC-SE9 | `FuelOut(ScrapIn=7)` returns 1 when `ScrapPerFuelRate == 4` (Floor rounding). Residual 3 Scrap is spent, not refunded. *(Scout/Assault only — Truck uses `ScrapPerFuelRate = 3` per node-map.md V3 F.2; Truck test: `FuelOut(7)` = 2.)* | L |
 | AC-SE10 | Both conversion verbs use `Floor`; `ScrapIn == 4 * N` produces exactly N Fuel with zero residual. | L |
 | AC-SE11 | `IsFreeValveApplied` is deterministic per (`runSeed`, `nodeIndex`): same seed + node pair always produces the same boolean. | L |
 | AC-SE12 | Over 10,000 simulated free-valve rolls with randomized seeds, ratio of true outcomes is `0.33 ± 0.03` at `FreeValveProbability = 0.33`. | L |
@@ -1230,7 +1230,7 @@ Each AC is testable. Gate level:
 | AC-SE27 | `TryPurchase` with `card.MerchantPrice == 0` fails `CardUnpriced` (defensive). | L |
 | AC-SE28 | `TryScrapPart` on Frame slot fails `FrameSlotWouldBeEmpty`. | L |
 | AC-SE29 | `TryScrapPart` on Empty slot fails `PartNotInstalled`. | L |
-| AC-SE30 | `TryConvertScrapToFuel(20)` with `ScrapPerFuelRate=4` produces `FuelOut=5`; `CurrentScrap` decreases by 20; `CurrentFuel` increases by 5; both sides log. | L |
+| AC-SE30 | `TryConvertScrapToFuel(20)` with `ScrapPerFuelRate=4` produces `FuelOut=5`; `CurrentScrap` decreases by 20; `CurrentFuel` increases by 5; both sides log. *(Scout/Assault baseline rate — Truck uses rate=3: `FuelOut(20)` = 6.)* | L |
 | AC-SE31 | `TryConvertFuelToScrap(20)` with `FuelPerScrapRate=4` produces `ScrapOut=5`; both sides log. | L |
 | AC-SE32 | `GrantScrap(25, "CombatReward[node:4]")` increases `CurrentScrap` by 25; log entry has `Verb=GrantScrap`; no `TransactionInFlight` guard triggers on concurrent `GrantScrap` calls (non-blocking income). | L |
 

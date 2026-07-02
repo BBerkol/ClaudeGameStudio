@@ -30,7 +30,7 @@ Systems are designed Foundation → Core → Feature → Presentation. MVP syste
 | 4 | Status Effect System | Combat | MVP | Approved (2026-04-21) | design/gdd/status-effects.md | Card System |
 | 5 | Card Combat System | Combat | MVP | Approved (2026-04-21) | design/gdd/card-combat-system.md | Card System, Vehicle & Part System, Status Effect System |
 | 6 | Scrap Economy System | Economy | MVP | Approved (2026-04-22) | design/gdd/scrap-economy.md | Vehicle & Part System, Card System |
-| 7 | Node Map System | Map | MVP | Approved (2026-04-21) | design/gdd/node-map.md | Save & Persistence System |
+| 7 | Node Map System | Map | MVP | **Approved (2026-07-02 V3 fuel-as-clock rewrite — 4 review passes same day; 20 blockers resolved total; pass 4 AC hygiene only — no design changes)** | design/gdd/node-map.md | Save & Persistence System |
 | 8 | Enemy System | Combat | MVP | Approved (2026-04-23) | design/gdd/enemy-system.md | Card Combat System, Status Effect System, Vehicle & Part System |
 | 9 | Loot & Reward System | Economy | MVP | Approved (2026-04-23) | design/gdd/loot-reward.md | Card System, Vehicle & Part System, Scrap Economy System, Enemy System, Node Map System |
 | 10 | Node Encounter System | Map | MVP | Approved (2026-04-23) | design/gdd/node-encounter.md | Node Map System, Loot & Reward System, Scrap Economy System |

@@ -315,7 +315,7 @@ return payloadOrder[3]   // fallback; unreachable when Sum(W) = 100
 ### D.4 EventConvert Rate Formulas
 
 **Variables:**
-- `ScrapPerFuelRate = 4` (Scrap Economy baseline)
+- `ScrapPerFuelRate = 4` (Scrap Economy baseline for Scout/Assault; Truck uses rate=3 per node-map.md V3 F.2 chassis table — Chopshop handler must read chassis-specific rate at commit time)
 - `FuelPerScrapRate = 4` (baseline)
 - `EventConvertFavorableRate = 3`
 
