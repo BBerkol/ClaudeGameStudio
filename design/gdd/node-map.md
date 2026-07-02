@@ -1,25 +1,31 @@
 # Node Map System
 
-> **Status**: Approved (CONCERNS revised)
+> **Status**: Approved (V3 fuel-as-clock 2026-07-02)
 > **Author**: Bertan Berkol + Claude Code agents
-> **Last Updated**: 2026-04-21
-> **Implements Pillar**: Pillar 5 (Route Reflects Vehicle State) — primary; Pillar 4 (Scarcity with Agency — Fuel as routing pacing); Pillar 2 (Chassis Identity — chassis-differentiated fuel burn)
+> **Last Updated**: 2026-07-02
+> **Implements Pillar**: Pillar 5 (Route Reflects Vehicle State) — primary; Pillar 4 (Scarcity with Agency — Fuel as routing pacing); Pillar 2 (Chassis Identity — expressed at the map layer as **tank size** (Scout 35 / Assault 50 / Truck 75) + **fuel-drain multiplier** (Scout 0.7 / Assault 1.0 / Truck 1.5); storm cadence is chassis-neutral by V3 lock — same countdown, different tank-drain feel)
 > **Pacing Verdict**: `design/notes/verdict-sandstorm-chase-pacing.md` (GO WITH CONDITIONS, 2026-04-21)
+> **V3 Architecture Verdict**: `production/td-verdicts/2026-07-02-v3-fuel-as-clock-architecture.md` (CONCERNS 2026-07-02, 3 items — all non-blocking)
 > **Creative Director Review (CD-GDD-ALIGN)**: CONCERNS 2026-04-21 → REVISED 2026-04-21 (4 fixes applied: Section B forfeit sentence, F.2 Truck compensation contract upgraded to mandatory, AC-NM50 tightened to Reachable-set-size test, AC-NM55 added for Scrap/Fuel data-path isolation)
+> **V3 Fuel-as-Clock Rewrite**: 2026-07-02 — retired combat-commit storm cadence (F-NM2 v1 + F-NM7); storm counter now decrements by beacon **base cost** (chassis-neutral) on every commit. Beacon costs raised, tanks resized. See production TD verdict for architecture and `production/session-state/active.md` for full locked numbers.
 
 ## Overview
 
-The Node Map System is the run-level navigation layer of Wasteland Run — the data and decision surface that sits between combat encounters. Structurally, it is a seeded procedural graph of nodes traversed forward from the run start toward the Haven endpoint, with branching depth lanes that allow lateral routing rather than strict forward lockstep. The graph is generated from a per-run seed (`System.Random`, deterministic), persisted as part of RunState, and lives as a plain C# model accessed by other systems through read-only queries. Layered on top of the graph are two dynamic pressures: an advancing sandstorm that consumes nodes from the run-start edge (discrete advances tied to player commit events, never real-time), and a Fuel budget that prices each node transition — chassis determines how much Fuel a move costs, so Scout ranges wide while Heavy Truck is forced toward the critical path. From the player's seat the map is an active decision layer every turn: read the storm, read Fuel, read what is reachable, commit. From the system's seat it is the delivery mechanism for three pillars at once — Pillar 5 (vehicle state gates route availability via named subsystem constraints), Pillar 4 (Fuel as the routing domain of the three-resource model), and Pillar 2 (chassis-differentiated fuel burn extends chassis identity past combat into routing). Without it, Wasteland Run collapses into a series of isolated encounters with no between-fight tension, no chassis-dependent horizon, and no entropy chasing the player forward — the run structure disappears.
+The Node Map System is the run-level navigation layer of Wasteland Run — the data and decision surface that sits between combat encounters. Structurally, it is a seeded procedural graph of nodes traversed forward from the run start toward the Haven endpoint, with branching depth lanes that allow lateral routing rather than strict forward lockstep. The graph is generated from a per-run seed (`System.Random`, deterministic), persisted as part of RunState, and lives as a plain C# model accessed by other systems through read-only queries. Layered on top of the graph are two coupled dynamic pressures: a **Fuel budget** that prices each node transition (chassis determines how much Fuel a move costs — Scout ranges wide, Heavy Truck is forced toward the critical path), and an **advancing sandstorm** whose advance cadence is *driven by that same commit event*. Every beacon commit decrements a visible **storm counter** by the beacon's **base cost** (chassis-neutral — the wasteland does not care what car you drive); when the counter reaches zero, the storm advances one strip and the counter resets. Fuel spend and storm decrement are the same beat, felt twice: as the fuel tank draining and as the storm counter closing. Chassis identity expresses itself as a **smaller fuel drain per beacon** (Scout ×0.7, Assault ×1.0, Truck ×1.5), which lets a Scout take more commits per tank than a Truck can — but the *storm counter itself is the same for all three*, so Scout gets more beacon commits *before* the storm ticks, not zero storm ticks. From the player's seat the map is an active decision layer every turn: read the storm counter, read Fuel, read what is reachable, commit — and watch both meters drain together as the vehicle travels. From the system's seat it is the delivery mechanism for three pillars at once — Pillar 5 (vehicle state gates route availability via named subsystem constraints), Pillar 4 (Fuel as the routing domain of the three-resource model), and Pillar 2 (chassis identity extends past combat into routing via differential fuel drain). Without it, Wasteland Run collapses into a series of isolated encounters with no between-fight tension, no chassis-dependent horizon, and no entropy chasing the player forward — the run structure disappears.
 
 ## Player Fantasy
 
 Before you ever look at the map, the vehicle under you has already narrowed which routes are yours to consider. A Scout and a Heavy Truck given the same seeded node graph do not see the same map. The Scout sees a web — detours, scavenge loops, storm-adjacent shortcuts, paths that fork three nodes ahead. The Truck sees a spine — a narrow column of committed forward nodes where fuel burn has already foreclosed almost everything else. The chassis votes before the player clicks anything. This is the map-layer fusion of Pillar 2 (Chassis Identity) and Pillar 5 (Route Reflects Vehicle State): the question at the map is never *"where should I go?"* — it is *"given what I am driving, what can I still afford?"*
 
-On every commit, the player's job is to study a dying map. Two forward options: a scrap-rich detour at 3 Fuel, a storm-adjacent shortcut at 1 Fuel. The player weighs, trades, commits — and understands that the un-chosen path will be eaten next turn, not because a clock ran out but because their own advance pulled the entropy forward. The verbs of this fantasy are deliberative: *read, weigh, spend, commit, forfeit*. Never race, never outrun. Fuel is the currency that prices these routes and nothing else; a hard route choice never feels like a repair choice, and a tense combat turn never feels like a travel cost. This is Pillar 4's three-domain scarcity made visible at the map layer.
+On every commit, the player's job is to study a dying map. Two forward options: a scrap-rich Merchant detour at 3 Fuel, a Combat encounter at 8 Fuel. The player weighs, trades, commits — and understands that the un-chosen path will be eaten as the storm counter closes. The verbs of this fantasy are deliberative: *read, weigh, spend, commit, forfeit*. Never race, never outrun. Fuel is the currency that prices these routes and nothing else; a hard route choice never feels like a repair choice, and a tense combat turn never feels like a travel cost. This is Pillar 4's three-domain scarcity made visible at the map layer.
 
 And the map pushes back. When a combat costs the player their long-range Fuel tank, the map re-reads itself — a node that was reachable three turns ago is now *too far for what this car is now*. Not locked, not gated: simply out of reach. The player feels the loss in the map, not the stat sheet. Every combat ripples outward into routing. Every part install changes the horizon. This is Pillar 1 (Vehicle as Character) at the map layer — the vehicle's current state is not an abstracted input to a menu; it is the shape of the road ahead.
 
-The storm is never a timer. It is the wasteland reclaiming the road behind the vehicle — pressure the player can always read but never outrun. When the player commits to a node, the world takes another bite. A node you could have taken two turns ago is gone now — not because you were too slow, but because the road itself has stopped existing behind you. That is the deal.
+The storm is never a timer, and the storm is never *silent*. Every beacon commit closes it visibly. On the map HUD sits a single storm counter — a number the player watches drain as they commit. Each beacon carries a **base cost** (Combat 8, Merchant 4, Rest 3, and so on) that ticks the storm counter down by exactly that much, chassis-neutral. When it hits zero the storm advances one strip and the counter resets. The player never asks *"when will the storm move?"* — they can see the answer in a number that lives next to their fuel tank. When the number is 3 and the only Reachable option is a Combat at 8, the player already knows what happens: they commit, the counter closes, the storm ticks mid-travel, and their route picture shrinks.
+
+**Pillar 2 at the map layer — smaller tick, not immunity.** Chassis identity does not exempt a Scout from the storm; it drains their fuel tank slower per beacon (×0.7 vs Truck's ×1.5), which means a Scout can afford more commits per tank than a Truck can. The storm counter itself is the same for all three. So a Scout gets more beacons *before* the storm ticks — not zero storm ticks. Truck is compensated on the reward side (per CD Condition 4 — higher Scrap/Fuel value per Combat/Elite), not on the map-cost side.
+
+When the player commits to a node, the world takes another bite. A node you could have taken two turns ago is gone now — not because you were too slow, but because the road itself has stopped existing behind you. That is the deal.
 
 ## Detailed Design
 
@@ -39,45 +45,52 @@ The Node Map System defines four categories of rules: **graph generation**, **st
 8. Haven is always the single terminal beacon at the right edge of Biome 3, Strip 5. No routes extend past Haven.
 9. **Combat / EliteCombat `EncounterType` authoring (Card Combat R15 retrofit 2026-04-24).** Each `Combat` and `EliteCombat` beacon carries `EncounterType ∈ {Standard, Ambush}`. Default: `Standard`. `Ambush` is authored per-node at graph-generation time on a small percentage of Combat nodes (target **<15%** across the run, with bias toward Biome 3 for narrative flavor). The value is stored on `BeaconData` and passed through to Node Encounter at commit (C3.5) and from NE to Card Combat unchanged (NE C.2.1 / C.2.2). Node Encounter's Event-Ambush payload (NE C.2.5) is a separate dispatch path and does not set `EncounterType` on the graph — Event beacons do not carry the field. **Graph-gen validator INVARIANT**: any beacon with `isBoss == true` MUST carry `EncounterType.Standard`. Ambush-authored boss nodes are rejected as authoring errors (Pillar 3 bossfight readability contract — a boss that strikes first before the player sees the turn order violates Read-to-Win). Tested by AC-NM45c.
 
-#### C1.2 Storm Model
+#### C1.2 Storm Model (V3 — fuel-as-clock, 2026-07-02)
 
 The storm has **two representations** — one authoritative, one cosmetic:
 
 1. **`StormFrontX` (authoritative scalar)** — a single `float` representing the storm front's X-coordinate on the map canvas. Save-serialized. Drives all gameplay logic. Any beacon whose X-coordinate is less than `StormFrontX` is in the **Consumed** state.
 2. **Visual noise band (cosmetic only)** — a seeded Perlin/simplex noise overlay rendered on top of `StormFrontX`, giving the storm irregular tendrils and storm-like visual texture. Seeded from `RunSeed` so replays look identical. **Never read by gameplay logic.** The noise band may visually extend past `StormFrontX`, but beacons are only Consumed when their true X < `StormFrontX`.
 
-**Storm advance trigger**: The system tracks a `CombatCommitCounter` that increments each time a `Combat` or `EliteCombat` encounter's reward screen closes. When the counter reaches `ChassisStormCadence[chassis]`, `StormFrontX` advances by one pace (`StormPaceX`) and the counter resets to 0. `ChassisStormCadence` is chassis-differentiated: Scout 3, Assault 2, Truck 1. No other trigger advances the storm.
+**Storm advance trigger (V3)**: The system tracks a **`StormCounter`** (integer, chassis-neutral). Each beacon commit decrements `StormCounter` by that beacon's **`BeaconBaseCost`** — the base cost from the biome distribution table, **before** the chassis fuel-drain multiplier is applied. When `StormCounter` reaches 0 or below, `StormFrontX` advances by one pace (`StormPaceX = 1 strip`) and `StormCounter` resets to `StormCounterStart` (biome-configured, default 30). The counter may advance mid-travel-animation (see H.1.11) — the number closes on-screen as the vehicle travels.
 
-Non-combat beacons (Merchant, Chopshop, Event, Rest) do NOT increment the counter and do NOT advance the storm — these are "breath" beats by design (Pillar 2: chassis-differentiated cadence makes Scout feel exploratory and Truck feel chased; Pillar 3 legibility: pace is predictable per-commit-type).
+**Chassis-neutrality**: `BeaconBaseCost` is the value the *wasteland* charges — the storm does not care what car you drive. The chassis multiplier only rescales the *fuel drain from your tank* (F-NM1), never the storm counter decrement (F-NM2). This is the load-bearing V3 property: a Scout gets more beacons *per tank* than a Truck, but the storm ticks after the same number of *committed base cost* for both.
 
-**Initial state**: `StormFrontX = -StormStartOffset` at run start (storm begins behind the run-start beacon by a configurable safety margin).
+**All beacons decrement the storm counter, including non-combat.** Rest, Merchant, Chopshop, Event, Combat, EliteCombat all carry a nonzero `BeaconBaseCost` and tick the counter on commit. Only **Haven** carries `BeaconBaseCost = 0` (terminal beacon; the run is ending). This is the deliberate replacement of the V1 combat-only cadence — the storm is not a combat clock, it is a fuel-spend clock.
 
-#### C1.3 Fuel Budget
+**Initial state**: `StormFrontX = -StormStartOffset` at run start (storm begins behind the run-start beacon by a configurable safety margin). `StormCounter = StormCounterStart` at biome start; on biome transition (gate-funnel commit into biome N+1), `StormCounter` resets to the incoming biome's `StormCounterStart`.
 
-1. Fuel is a vehicle-level resource, read via `IVehicleView.CurrentFuel` and deducted via `IVehicleMutator.SpendFuel(int)`.
-2. Every beacon commit deducts Fuel. Cost formula defined in Section D; conceptually: `FuelCostBase × ChassisMultiplier + LateralSurcharge`.
-3. **Chassis multipliers** (owned by V&P chassis stat block — this GDD consumes, does not author): Scout `×0.8`, Assault `×1.0`, Heavy Truck `×1.3`.
-4. **Lateral surcharge**: commits to a lateral-adjacent beacon (not a forward connection) add `FuelCostLateralSurcharge`. Reflects the "off the critical path" cost.
-5. **Fuel sources**: beacon rewards (Combat, Elite, Event), Merchant purchase, Chopshop conversion. Distribution owned by Node Encounter GDD and Loot & Reward GDD.
-6. **Non-leakage contract**: Fuel is never spent or granted inside combat (Pillar 4, Condition 2). Combat damage never modifies Fuel.
-7. **Insufficient Fuel**: if a commit would require more Fuel than the vehicle has, the beacon is not selectable (greyed out in UI). If ALL reachable beacons are unaffordable, the run ends (see Edge Cases E-3).
+**Haven fuel refill**: On Haven arrival at biome end, the vehicle's Fuel is refilled by `HavenFuelRefillPercent × MaxFuel` (default 50%). This is the Haven-side breather beat, biome-configured, and does not touch storm state. Haven-driven refills preserve tension into biome N+1 by design — the player does not enter the next biome at full tank.
 
-#### C1.4 Commit Resolution Pipeline
+#### C1.3 Fuel Budget (V3)
 
-When the player commits from Beacon A → Beacon B, the system runs the following pipeline **in order**. The pipeline is atomic: any failure before step 5 rolls back the entire commit.
+1. Fuel is a vehicle-level resource, read via `IVehicleView.CurrentFuel` and deducted via `IVehicleMutator.SpendFuel(int)`. Architecture-side, Fuel lives on `RunState.Fuel : FuelState` per V3 TD verdict.
+2. Every beacon commit deducts Fuel. Cost formula defined in F-NM1; conceptually: `ceil(BeaconBaseCost × ChassisMultiplier), floor 1`.
+3. **Chassis fuel-drain multipliers** (owned by V&P chassis stat block — this GDD consumes, does not author): Scout `×0.7`, Assault `×1.0`, Heavy Truck `×1.5`. These multipliers rescale the **tank drain only**; the storm counter uses `BeaconBaseCost` unchanged (see C1.2).
+4. **Tank sizes (`MaxFuel`)**: Scout **35**, Assault **50**, Heavy Truck **75**. Derived from `Chassis` at `StartRun` and snapshotted into `FuelState.Max` (V3 TD Risk 2 — snapshot, not live-derive, unless the user later flips the balance-patch policy).
+5. **Fuel sources**: beacon rewards (Combat, Elite via `CombatReward.Fuel`), Merchant purchase, Chopshop conversion (Scrap→Fuel), Event outcomes, Haven refill (50% of `MaxFuel` on Haven arrival). Distribution owned by Node Encounter GDD and Loot & Reward GDD.
+6. **Non-leakage contract**: Fuel is never spent or granted inside combat (Pillar 4, Condition 2). Combat damage never modifies Fuel. `CombatReward.Fuel` is added at the reward-screen boundary, not inside the combat simulation — see ADR-0013 amendment (V3, 2026-07-02).
+7. **Insufficient Fuel**: if a commit would require more Fuel than the vehicle has, the beacon is not selectable (greyed out in UI). If ALL reachable beacons are unaffordable, the run ends (see Edge Cases E-3). Fuel-source injection from beacon rewards + Merchant + Chopshop is the balance surface for keeping starvation rare-but-earned.
+
+**Lateral surcharge (retired in V3)**: The V1 `FuelCostLateralSurcharge` knob is deferred pending playtest — V3 ships without an additive lateral surcharge because the storm-counter tax already prices lateral moves (a lateral commit still spends BeaconBaseCost against the counter, so lateral routing is not free). Reintroduce as a knob only if playtest data shows lateral routing dominates the map.
+
+#### C1.4 Commit Resolution Pipeline (V3)
+
+When the player commits from Beacon A → Beacon B, the system runs the following pipeline **in order**. The pipeline is atomic: any failure before step 5 rolls back the entire commit. Storm counter decrement fires **before** `EnterCombat` (step 8), so combat never sees the storm advance — CD Condition 3 is strict-satisfied (see C3.4).
 
 1. **Validate** — `IsValidCommit(A, B)` predicate must return true (see C2). If false, reject commit; UI does nothing.
 2. **Query cost** — compute `fuelCost = ComputeFuelCost(A, B, chassis)`.
-3. **Check affordability** — if `IVehicleView.CurrentFuel < fuelCost`, reject commit.
-4. **Deduct Fuel** — call `IVehicleMutator.SpendFuel(fuelCost)`. If mutator rejects, halt pipeline.
-5. **Transition A → Visited** — A's beacon state becomes `Visited`.
-6. **Transition B → Current** — player is now at B.
-7. **Hand off to Node Encounter** — B's encounter type resolves (Combat, Merchant, Chopshop, Event, Rest, Haven). Node Map relinquishes control to the Node Encounter GDD's handler during encounter.
-8. **On encounter resolve** — Node Encounter returns an outcome. If B is a `Combat` or `EliteCombat` beacon AND the outcome is "reward screen closed":
-   1. `CombatCommitCounter += 1`.
-   2. If `CombatCommitCounter >= ChassisStormCadence[chassis]`: advance `StormFrontX += StormPaceX` and reset `CombatCommitCounter = 0`.
-9. **Consume sweep** — iterate all beacons; any beacon whose X < `StormFrontX` transitions to `Consumed`. If `StormFrontX >= PlayerBeaconX`, trigger **run-end** (storm-hit, see Edge Cases E-1).
-10. **Recompute Reachable set** — compute all beacons B' where `IsValidCommit(Current, B') == true`, and flag them `Reachable` for UI rendering.
+3. **Check affordability** — if `RunState.Fuel.Current < fuelCost`, reject commit.
+4. **Deduct Fuel** — call `IVehicleMutator.SpendFuel(fuelCost)` (routes to `FuelState.Spend(baseCost, chassisMult)`). If mutator rejects, halt pipeline.
+5. **Decrement storm counter** — `FuelState.Spend` also returns the storm decrement amount (= `BeaconBaseCost`, chassis-neutral). Apply: `StormCounter -= BeaconBaseCost[B.Type]`. If `StormCounter <= 0`, advance `StormFrontX += StormPaceX` and reset `StormCounter = StormCounterStart[currentBiome]`. **Multiple advances per commit are impossible** — `BeaconBaseCost` is always less than or equal to `StormCounterStart` (design invariant, checked at biome asset validation).
+6. **Transition A → Visited** — A's beacon state becomes `Visited`.
+7. **Transition B → Current** — player is now at B.
+8. **Consume sweep (pre-encounter)** — iterate all beacons; any beacon whose X < `StormFrontX` transitions to `Consumed`. If `StormFrontX >= PlayerBeaconX`, trigger **run-end** (storm-hit, see Edge Cases E-1). Runs before `EnterCombat` so that a mid-travel storm advance that would end the run does so *without* the combat scene ever loading.
+9. **Hand off to Node Encounter** — B's encounter type resolves (Combat, Merchant, Chopshop, Event, Rest, Haven). Node Map relinquishes control to the Node Encounter GDD's handler during encounter. Combat handlers see combat state only — the storm counter and fuel state are frozen for the duration of the encounter (CD Condition 3 / C3.4).
+10. **On encounter resolve** — Node Encounter returns an outcome. Reward payloads (`Scrap`, `Fuel` via `CombatReward.Fuel` per ADR-0013, card choices) are applied here. `CombatReward.Fuel` is clamped to `FuelState.Max`.
+11. **Recompute Reachable set** — compute all beacons B' where `IsValidCommit(Current, B') == true`, and flag them `Reachable` for UI rendering.
+
+**On defeat (Node Encounter returns `DidPlayerSurvive == false`)**: skip steps 10–11; the storm decrement from step 5 has *already* applied — the storm counter and `StormFrontX` remain at their post-commit state in the run-summary. This is a deliberate legibility choice: the death screen shows the world as it was at the moment of defeat, not as it was at the moment of commit.
 
 ### States and Transitions
 
@@ -115,11 +128,11 @@ The storm has three states:
 
 | State | Condition | Behavior |
 |---|---|---|
-| `Dormant` | `StormFrontX < FirstBeaconX` | Storm is present visually but has not yet consumed any beacon. Still advances on trigger. |
+| `Dormant` | `StormFrontX < FirstBeaconX` | Storm is present visually but has not yet consumed any beacon. Still decrements/advances on trigger. |
 | `Active` | `StormFrontX >= FirstBeaconX` AND `StormFrontX < PlayerBeaconX` | Storm has begun consuming beacons; player is still ahead. |
 | `RunEnd` | `StormFrontX >= PlayerBeaconX` | Storm has caught the player. Run ends immediately (see E-1). |
 
-Transitions are monotonic: `Dormant → Active → RunEnd`. No state ever regresses (storm never retreats).
+Transitions are monotonic: `Dormant → Active → RunEnd`. No state ever regresses (storm never retreats). Advance is driven by the storm counter reaching zero on beacon commit (C1.4 step 5); the counter itself is an integer running from `StormCounterStart` down to 0, resetting to `StormCounterStart` on each advance.
 
 #### C2.3 The `IsValidCommit(A, B)` Predicate
 
@@ -152,7 +165,9 @@ The following invariants must hold at all times outside the atomic commit pipeli
 - **I-6**: The `Reachable` set is computed, not stored — it is reconstructed from `Current` + graph edges + Fuel on save-load.
 - **I-7**: The generated graph is deterministic given `RunSeed` — two runs with the same seed produce byte-identical beacon positions, edges, and types.
 - **I-8**: The visual noise band is deterministic given `RunSeed` but NEVER read by gameplay logic (cosmetic-only contract).
-- **I-9**: Fuel deduction and beacon state transition are atomic within the commit pipeline — a save cannot be taken mid-pipeline (Save GDD rule: save points are between commits only).
+- **I-9**: Fuel deduction, storm counter decrement, and beacon state transition are atomic within the commit pipeline — a save cannot be taken mid-pipeline (Save GDD rule: save points are between commits only).
+- **I-10**: `StormCounter ∈ [1, StormCounterStart]` at every settled state (outside atomic commit pipeline). It never sits at `≤ 0` at rest — the reset-to-`StormCounterStart` fires in the same commit step that drops it to 0.
+- **I-11**: `BeaconBaseCost[type] ≤ StormCounterStart[biome]` for every beacon type and every biome — enforced at biome asset validation. Prevents any single commit from advancing the storm by more than one strip.
 
 ### Interactions with Other Systems
 
@@ -169,14 +184,14 @@ The table below codifies every cross-system boundary. Each row names the partner
 | **Vehicle & Part** | Write-only (single verb) | `IVehicleMutator.SpendFuel(int)` | V&P GDD | Deduct Fuel on commit (step 4 of pipeline) |
 | **Node Encounter** | Hand-off | `IEncounterHandler.Begin(Beacon, OutcomeCallback)` | Node Encounter GDD | Transfer control to encounter handler on commit step 7; receive outcome on step 8 |
 | **Node Encounter** | Read-only | `IBiomeEncounterTable` (beacon-type distribution) | Node Encounter GDD | Populate beacon types during graph generation |
-| **Card Combat** | Read-only | Combat outcome enum `{VictoryRewardClosed, Defeat}` via Node Encounter | Card Combat GDD | Detect "reward screen closed" to trigger storm tick (step 8 of pipeline) |
-| **Loot & Reward** | Read-only | `IRewardTable` for Combat / Elite beacons | Loot & Reward GDD | Pass to Node Encounter during encounter resolution; Fuel appears as a reward channel here |
+| **Card Combat** | Read-only | Combat outcome enum `{VictoryRewardClosed, Defeat}` via Node Encounter | Card Combat GDD | Receive `CombatReward` (Scrap + Fuel + CardOffer) at pipeline step 10. V3: storm decrement happens at step 5 pre-encounter, so combat outcome never triggers storm tick. |
+| **Loot & Reward** | Read-only | `IRewardTable` for Combat / Elite beacons; `IRewardSource.Generate` returns `(int Scrap, int Fuel)` per ADR-0013 V3 amendment | Loot & Reward GDD | Pass to Node Encounter during encounter resolution; Fuel appears as a first-class reward channel here (draw order LOCKED: Scrap first, Fuel second; salt `0x5257`) |
 | **Scrap Economy** | Separation contract | None — **explicit non-interaction** | Scrap Economy GDD | Fuel and Scrap are distinct domains (Pillar 4). Scrap Economy GDD must NOT share a pool with Fuel; Fuel acquisition sources must be distinct from Scrap sources. |
 | **Game Pillars / Anti-Pillars** | Constraint | Runtime assert: storm never advances during combat | Node Map owns the enforcement | Implements "NOT a real-time map" anti-pillar and CD Condition 3 |
 
 #### C3.2 Save / Load Contract
 
-The Node Map participates in the Save GDD's passive-serializer pattern via a single DTO:
+The Node Map participates in the Save GDD's passive-serializer pattern via a single DTO. Fuel/storm state is serialized on `RunStateDto` (V3 TD verdict Q4 — additive fields, `SCHEMA_VERSION++`); Node Map owns the graph + beacon state + storm-front DTO shape:
 
 ```csharp
 [Serializable]
@@ -184,14 +199,27 @@ public sealed class NodeMapDto  // implements INodeMapSerializable
 {
     public int RunSeed;
     public float StormFrontX;
-    public int CombatCommitCounter;
+    public int StormCounter;             // V3: replaces CombatCommitCounter
     public string CurrentBeaconId;
-    public BeaconStateDto[] Beacons;  // {Id, X, Y, Strip, Type, State, Edges[]}
+    public BeaconStateDto[] Beacons;     // {Id, X, Y, Strip, Type, State, Edges[]}
     public int BiomeIndex;
 }
 ```
 
-Save GDD's serializer calls Node Map's `ToDto()` / `FromDto(dto)` on save/load. The `Reachable` set is NOT serialized — it is recomputed from `CurrentBeaconId` + graph + `IVehicleView.CurrentFuel` on load (per Invariant I-6).
+RunState-side V3 addition (owned by `RunStateDto`, listed here for cross-ref):
+```csharp
+// RunStateDto additive fields (V3, SCHEMA_VERSION++)
+public int FuelCurrent;
+public int FuelMax;                      // OR live-derive on FromDto — see V3 TD Risk 2
+```
+
+**Not persisted (derived on resume)** — per V3 TD verdict Q4, aligning with ADR-0003 Rule 3:
+- `StormCounterStart` — read from biome SO on resume
+- `BeaconBaseCost[type]` table — read from biome SO on resume
+- `HavenFuelRefillPercent` — read from biome SO on resume
+- `MaxFuel` — derived from `Chassis` on resume (V3 TD Risk 2 recommends live-derive so post-EA balance patches take immediate effect on existing saves)
+
+Save GDD's serializer calls Node Map's `ToDto()` / `FromDto(dto)` on save/load. The `Reachable` set is NOT serialized — it is recomputed from `CurrentBeaconId` + graph + `RunState.Fuel.Current` on load (per Invariant I-6).
 
 **Save timing constraint**: saves are only valid between commits (Invariant I-9). Node Map exposes `IsCommitInProgress : bool`; Save GDD must check this before invoking `ToDto()`.
 
@@ -210,9 +238,11 @@ Node Map is a **read-heavy consumer** of V&P. It never touches `CurrentArmor`, `
 
 Per CD Condition 3 and the "NOT a real-time map" anti-pillar:
 
-- **Storm does NOT advance during combat.** The storm-advance trigger fires exclusively from Node Encounter's "reward screen closed" callback — never from any combat event.
-- **Combat does NOT modify `CurrentFuel`.** Per V&P GDD, combat damage/effects do not touch Fuel.
-- **Combat does NOT read `StormFrontX`.** Combat simulation has no knowledge of storm state.
+- **Storm does NOT advance during combat.** V3 architecture: `StormCounter` decrement and any resulting `StormFrontX` advance fire at commit-pipeline step 5 — **before** step 9 (`EnterCombat`). Nothing inside `CombatLoop` reads, mutates, or observes `StormCounter` or `StormFrontX`.
+- **Combat does NOT modify `RunState.Fuel`.** Per V&P GDD + ADR-0013 V3 amendment, combat damage/effects do not touch Fuel. `CombatReward.Fuel` is applied at the reward-screen boundary (step 10), which is outside the combat simulation surface.
+- **Combat does NOT read `StormFrontX` or `StormCounter`.** Combat simulation has no knowledge of storm state or fuel budget.
+
+**Perception-vs-state note** (V3 TD verdict Q5 wording risk): A player commits to a Combat beacon whose base cost drops the counter to 0. The storm ticks *mid-travel-animation* — the vehicle traverses the edge, the counter closes, the storm advances, then combat starts. The **state-machine reading** is that storm advance happened at step 5 (pre-combat) and combat began at step 9; the **player reading** may attribute the tick to the combat itself ("combat caused the storm to move"). This is acceptable — the animation timing (see H.1.11) makes the causal chain visible (fuel drain → counter close → storm move → combat start). Do not re-adjudicate the mechanic; the animation timing carries the readability contract.
 
 A `#if DEBUG` assert in the storm advance method checks `NodeMap.Phase == NodeMapPhase.OnMap` and throws if advance is called during an active encounter.
 
@@ -274,9 +304,11 @@ Four constraints are defined, one per subsystem slot. Each is classified as **Ha
 ##### RC-E1 — Engine Offline → Fuel Cost Surcharge (**Soft**)
 
 - **Trigger**: `SubsystemStates[Engine] == Offline`.
-- **Effect**: Every commit adds `+1` to the final Fuel cost (applied after chassis multiplier and lateral surcharge).
+- **Effect**: Every commit adds `EngineOfflineSurcharge` to the final Fuel drain (applied after chassis multiplier).
+- **V3 rescaling deferred**: In V1, the surcharge was `+1` against beacon base costs of 2. Under V3 base costs (Combat 8, Merch 4, etc.), a flat `+1` is negligible; the rescale to a **percentage-based** surcharge (target: ~10–15%) is deferred pending post-slice playtest. Ship V3 with `EngineOfflineSurcharge = +1 fuel` interim; flag OQ-NM7.
 - **Not a hard block**: Commits still resolve normally provided Fuel is sufficient.
 - **UI signal**: Cost label on each Reachable beacon shows `"base + 1 (Engine offline)"` in amber.
+- **Storm counter unaffected**: The surcharge modifies fuel drain only, not `BeaconBaseCost` → storm decrement stays chassis-neutral even with Engine offline. The wasteland does not care about your Engine subsystem.
 - **Rationale**: Engine is the vehicle's routing muscle. Degraded engine → more Fuel per move → the map horizon shrinks. This is Pillar 5 expressed as economic friction, not as lock-out.
 
 ##### RC-M1 — Mobility Offline → Lateral Moves Blocked (**Hard**)
@@ -322,81 +354,130 @@ All numeric thresholds (`+1` Fuel surcharge, `+15%` hostile tilt) are tuning kno
 
 Node Map defines seven numeric formulas. Every tuning knob referenced here is enumerated in Section G with its safe range. Every formula states its variables, valid ranges, and at least one example.
 
-### F-NM1 — ComputeFuelCost
+### F-NM1 — ComputeFuelCost (V3)
 
 The canonical Fuel cost formula for a commit from beacon A to beacon B.
 
 ```
 ComputeFuelCost(A, B, chassis, subsystemStates) =
-    round( FuelCostBase × ChassisMultiplier[chassis] )
-  + ( IsLateral(A, B) ? FuelCostLateralSurcharge : 0 )
-  + ( subsystemStates[Engine] == Offline ? EngineOfflineSurcharge : 0 )
+    if B.Type == Haven:
+        return 0                                                             // Haven is chassis-neutral terminal beacon — never drains, never surcharges
+    else:
+        return max( 1, ceil( BeaconBaseCost[B.Type] × ChassisMultiplier[chassis] ) )
+             + ( subsystemStates[Engine] == Offline ? EngineOfflineSurcharge : 0 )
 ```
+
+**Haven branch (V3)**: The explicit `Haven → 0` short-circuit runs *before* the `max(1, ...)` floor so that Haven arrival never spends fuel, even for Truck (`0 × 1.5 = 0` would otherwise round up to `max(1, 0) = 1`). Haven is a design-locked chassis-neutral terminal beacon; a "commit fee" on Haven would break E-11 (Haven photo-finish) and the C1.2 non-decrement invariant.
+
+For every non-Haven beacon, formula uses `ceil` (not `round`) with a floor of 1 so that a Scout committing to a Rest (base 3, ×0.7 = 2.1) always spends *some* fuel — never rounds to 0. Engine-offline surcharge applies additively to non-Haven commits only.
 
 **Variables**:
 | Symbol | Source | Type | Range | Meaning |
 |---|---|---|---|---|
-| `FuelCostBase` | Tuning knob (G) | int | 1–5 | Base Fuel cost for one commit, pre-multiplier |
-| `ChassisMultiplier[chassis]` | V&P GDD | float | 0.5–2.0 | Chassis fuel-burn modifier |
-| `IsLateral(A, B)` | Computed | bool | — | `true` iff `B.X == A.X` (lateral-adjacent commit) |
-| `FuelCostLateralSurcharge` | Tuning knob (G) | int | 0–3 | Extra Fuel added for lateral moves |
+| `BeaconBaseCost[B.Type]` | `BiomeDistributionSO` per V3 TD Q3 | int | 0–12 | Base Fuel cost by beacon type (chassis-neutral); table below |
+| `ChassisMultiplier[chassis]` | V&P GDD chassis stat block | float | 0.5–2.0 | Chassis fuel-drain modifier (V3: Scout 0.7 / Assault 1.0 / Truck 1.5) |
 | `subsystemStates[Engine]` | V&P GDD | enum | — | `Offline` / `Degraded` / `Online` |
-| `EngineOfflineSurcharge` | Tuning knob (G) | int | 0–2 | Extra Fuel when Engine is Offline (RC-E1) |
+| `EngineOfflineSurcharge` | Tuning knob (G) | int | 0–2 | Extra Fuel when Engine is Offline (RC-E1); V3 flat +1 pending percentage rescale (OQ-NM7) |
 
 **Chassis multipliers** (owned by V&P GDD, reproduced for clarity):
 
 | Chassis | Multiplier |
 |---|---|
-| Scout | 0.8 |
+| Scout | 0.7 |
 | Assault | 1.0 |
-| Heavy Truck | 1.3 |
+| Heavy Truck | 1.5 |
 
-**Example 1** — Scout, forward commit, Engine online, `FuelCostBase=2`:
+**Beacon base cost table** (biome 1; owned by `Biome1Distribution.asset` per ADR-0015):
+
+| Beacon Type | Base Cost | Storm counter decrement |
+|---|---|---|
+| Haven | 0 | 0 |
+| Rest | 3 | 3 |
+| Merchant | 4 | 4 |
+| Chopshop | 4 | 4 |
+| Event | 5 | 5 |
+| Combat | 8 | 8 |
+| EliteCombat | 12 | 12 |
+
+Later biomes may edit these values via their own `BiomeDistributionSO` asset. Elite base = Combat × 1.5 is the design-invariant ratio (Elite is a harder Combat); breaking that ratio requires a Pillar-2 review.
+
+**Example 1** — Scout, Combat beacon, Engine online, `BeaconBaseCost=8`:
 ```
-cost = round(2 × 0.8) + 0 + 0 = round(1.6) = 2
+cost = max(1, ceil(8 × 0.7)) + 0 = ceil(5.6) = 6
 ```
 
-**Example 2** — Heavy Truck, lateral commit, Engine online, `FuelCostBase=2`, `FuelCostLateralSurcharge=1`:
+**Example 2** — Heavy Truck, Combat beacon, Engine online, `BeaconBaseCost=8`:
 ```
-cost = round(2 × 1.3) + 1 + 0 = round(2.6) + 1 = 3 + 1 = 4
-```
-
-**Example 3** — Assault, forward commit, Engine offline, `FuelCostBase=2`, `EngineOfflineSurcharge=1`:
-```
-cost = round(2 × 1.0) + 0 + 1 = 2 + 0 + 1 = 3
+cost = max(1, ceil(8 × 1.5)) + 0 = ceil(12.0) = 12
 ```
 
-**Output range**: minimum 1 Fuel per commit, maximum 13 Fuel per commit (Heavy Truck + lateral + Engine offline + worst-case knobs). Expected typical range: 2–5 Fuel.
+**Example 3** — Assault, Elite beacon, Engine offline, `BeaconBaseCost=12`, `EngineOfflineSurcharge=1`:
+```
+cost = max(1, ceil(12 × 1.0)) + 1 = 12 + 1 = 13
+```
 
-### F-NM2 — StormAdvance
+**Example 4** — Scout, Rest beacon, Engine online, `BeaconBaseCost=3`:
+```
+cost = max(1, ceil(3 × 0.7)) + 0 = ceil(2.1) = 3
+```
 
-The storm's authoritative advance step, gated by a chassis-differentiated counter.
+**Output range**: 0 (Haven only), else minimum 1 Fuel per commit, maximum 19 Fuel per commit (Truck Elite + Engine offline). Expected typical range at biome 1: 3–12 Fuel.
+
+**Chassis drain table** (derived, biome 1):
+
+| Beacon | Scout ×0.7 | Assault ×1.0 | Truck ×1.5 |
+|---|---|---|---|
+| Haven | 0 | 0 | 0 |
+| Rest (base 3) | 3 | 3 | 5 |
+| Merchant (base 4) | 3 | 4 | 6 |
+| Chopshop (base 4) | 3 | 4 | 6 |
+| Event (base 5) | 4 | 5 | 8 |
+| Combat (base 8) | 6 | 8 | 12 |
+| Elite (base 12) | 9 | 12 | 18 |
+
+**Storm counter decrement is always the base cost column**, never the chassis-drain column. Chassis multipliers do not exist in F-NM2.
+
+### F-NM2 — StormCounterDecrement (V3 — replaces V1 StormAdvance)
+
+The storm's authoritative advance step, driven by beacon commits via a **chassis-neutral** counter. Called at commit pipeline step 5.
 
 ```
-OnCombatRewardClosed():
-    CombatCommitCounter += 1
-    if CombatCommitCounter >= ChassisStormCadence[chassis]:
+OnBeaconCommit(beaconType):
+    baseCost = BeaconBaseCost[beaconType]   // chassis-NEUTRAL
+    StormCounter -= baseCost
+    if StormCounter <= 0:
         StormFrontX = StormFrontX + StormPaceX
-        CombatCommitCounter = 0
+        StormCounter = StormCounterStart[currentBiome]
 ```
 
 **Variables**:
 | Symbol | Source | Type | Range | Meaning |
 |---|---|---|---|---|
-| `CombatCommitCounter` | Node Map state | int | `[0, max(ChassisStormCadence)]` | Combats completed since last storm tick |
-| `ChassisStormCadence[chassis]` | F-NM7 | int | 1–5 | Combats required to tick the storm once |
+| `StormCounter` | Node Map state (persisted) | int | `[1, StormCounterStart]` at rest | Current fuel-clock value; ticks down on commit |
+| `StormCounterStart[biome]` | `BiomeDistributionSO` per V3 TD Q3 | int | 20–60 | Starting counter value at biome start; biome 1 = 30 |
+| `BeaconBaseCost[type]` | `BiomeDistributionSO` per V3 TD Q3 | int | 0–12 | Beacon-type base cost (chassis-neutral); table in F-NM1 |
 | `StormFrontX` | Node Map state | float | `[-StormStartOffset, ∞)` | Current X-coordinate of storm front |
-| `StormPaceX` | Tuning knob (G) | float | `0.5 × StripWidth` to `1.5 × StripWidth` | Distance advanced per tick |
+| `StormPaceX` | Tuning knob (G) | float | 1 strip width (locked) | Distance advanced per tick |
 
-**Trigger condition**: called exactly once, at commit pipeline step 8, when the resolving beacon is `Combat` or `EliteCombat` and `WasCombatRewardClosed == true`.
+**Trigger condition**: called exactly once per commit, at pipeline step 5 — before `EnterCombat`. Fires for *every* beacon type except Haven (Haven has `BeaconBaseCost = 0` so the decrement is a no-op and the counter never crosses 0).
 
-**Example** — Scout chassis (`ChassisStormCadence = 3`), `StormPaceX = 128`:
-- Combat #1: counter 0→1, storm stays at `-64`
-- Combat #2: counter 1→2, storm stays at `-64`
-- Combat #3: counter 2→3 → **tick** → storm advances to `64`, counter resets to 0
-- Combat #4: counter 0→1, storm stays at `64`
+**Chassis-neutrality**: the counter decrement uses the base cost, NOT the chassis-scaled fuel drain. A Scout, Assault, and Truck committing to the same Combat beacon all decrement `StormCounter` by 8. This is the V3 invariant that keeps chassis identity a **smaller-tank** effect, not a storm-immunity effect.
 
-**Example** — Truck chassis (`ChassisStormCadence = 1`): every combat ticks the storm immediately; counter resets on every tick.
+**Storm counter never goes negative at rest** (invariant I-10): the `<= 0` check + reset-to-`StormCounterStart` fires in the same commit step, so between commits the counter is always `[1, StormCounterStart]`. If a commit is worth exactly the full remaining counter (e.g., counter=8, Combat commit), the storm ticks once and counter resets to `StormCounterStart`. Never two ticks per commit — invariant I-11 bounds `BeaconBaseCost` at `StormCounterStart` at asset validation time.
+
+**Example** — Scout, biome 1, `StormCounterStart=30`:
+- Start: counter=30
+- Commit Combat (base 8): counter=22, no tick
+- Commit Merchant (base 4): counter=18, no tick
+- Commit Combat (base 8): counter=10, no tick
+- Commit Elite (base 12): counter=-2 → **tick** → `StormFrontX += 1 strip`, counter resets to 30
+- Commit Rest (base 3): counter=27, no tick
+
+Scout took 5 commits to trigger 1 storm tick. Same run under **Truck**: same 5 commits, same 1 storm tick. The chassis difference lives in *how much fuel* those 5 commits drained (Scout 6+3+6+9+3 = **27** fuel; Truck 12+6+12+18+5 = **53** fuel). Scout's tank (35) covers the 27; Truck's tank (75) covers the 53, but the same tank size ratio means Truck also has less overhead across those 5 commits before starvation risk.
+
+### F-NM2b — (retired 2026-07-02) `StormAdvance` combat-commit cadence
+
+The V1 storm-advance mechanic (`CombatCommitCounter` incremented on combat reward close, `ChassisStormCadence` lookup) is **retired**. Reasons documented in `production/session-state/active.md` and `production/td-verdicts/2026-07-02-v3-fuel-as-clock-architecture.md`. F-NM7 is deleted (was the `ChassisStormCadence` lookup table).
 
 ### F-NM3 — IsBeaconConsumed
 
@@ -467,26 +548,13 @@ TargetConnectionCount(beacon) =
 
 Output range: always 1, 2, or 3. Default `GraphDensityTarget = 2.0` yields a distribution heavily weighted toward 2 connections with natural jitter into 1 or 3.
 
-### F-NM7 — ChassisStormCadence
+### F-NM7 — (retired 2026-07-02) ChassisStormCadence
 
-Chassis-differentiated constant governing storm tick rate. Lookup table rather than a formula, but documented here as the authoritative source.
+**Retired 2026-07-02** in favor of the chassis-neutral `StormCounter` (F-NM2 V3). Chassis identity at the map layer is expressed as `MaxFuel` tank size + `ChassisMultiplier` fuel-drain multiplier (F-NM1), not as storm cadence. Capture: `production/polish-captures/2026-07-02-node-map-v3-rewrite.md`. Architecture: `production/td-verdicts/2026-07-02-v3-fuel-as-clock-architecture.md`.
 
-```
-ChassisStormCadence[Scout]   = 3
-ChassisStormCadence[Assault] = 2
-ChassisStormCadence[Truck]   = 1
-```
-
-**Meaning**: number of combat encounters required before `StormFrontX` advances by one pace.
-
-**Tuning range**: 1–5. Below 1 is undefined; above 5 makes the storm feel inert and breaks Pillar 5. The Scout/Assault/Truck spread **must preserve ordering** (Scout > Assault > Truck) to preserve the chassis fantasy — if the ordering inverts, this is a Pillar-2 break and needs a pillar review.
-
-**Example playthrough comparison**, Biome 1 with 20 combat beacons fully traversed:
-- Scout: ~6.6 storm ticks across the biome
-- Assault: ~10 storm ticks across the biome
-- Truck: ~20 storm ticks across the biome
-
-This is the cadence difference that makes the chassis fantasy legible at the map layer.
+Cadence-comparison intuition under V3 (biome 1, chassis-neutral):
+- 5-commit sequence (Combat, Merchant, Combat, Elite, Rest) → total base spend 8+4+8+12+3 = **35** → 1 storm tick, counter resets from `30 - 35 = -5` to `StormCounterStart = 30` (then + no leftover; the tick fires once). Under any chassis the tick count is the same for the same route.
+- Chassis-different property lives in *tank drain*, not tick count: Scout drains 6+3+6+9+3 = **27** fuel across those 5 commits; Truck drains 12+6+12+18+5 = **53** fuel. Scout has 8 fuel headroom on a 35 tank; Truck has 22 headroom on 75. Different *route horizons*, same *storm ticks*.
 
 ## Edge Cases
 
@@ -494,21 +562,22 @@ Every edge case states the trigger condition and the explicit system response. N
 
 ### E-1 — Storm catches player
 
-**Trigger**: `StormFrontX >= CurrentBeacon.X` after commit pipeline step 8 executes `StormAdvance` (F-NM2).
-**Response**: Run ends immediately with `RunEndReason = StormCaughtPlayer`. The commit pipeline halts at step 9 (Consume sweep triggers run-end); step 10 (Recompute Reachable) is skipped. Node Map publishes `RunEnded(StormCaught)` event. Transition to defeat/run-summary scene.
+**Trigger**: `StormFrontX >= CurrentBeacon.X` after commit pipeline step 5 executes `StormCounterDecrement` (F-NM2 V3) and step 8 executes the Consume sweep.
+**Response**: Run ends immediately with `RunEndReason = StormCaughtPlayer`. The commit pipeline halts at step 8 (Consume sweep triggers run-end); step 9 (`EnterCombat`) is *never called* — the combat scene does not load. Steps 10–11 skipped. Node Map publishes `RunEnded(StormCaught)` event. Transition to defeat/run-summary scene.
 **Explicit state**: `CurrentBeacon.State` does NOT transition to `Consumed` — it remains `Current` in the final saved-out state. The run-summary scene renders the beacon-at-storm-front as the death point.
-**Preventable?**: Yes — player had full legibility of `StormFrontX` and `CombatCommitCounter` before every commit.
+**Preventable?**: Yes — player had full legibility of `StormFrontX` and `StormCounter` before every commit. The counter shows the exact base cost required to trigger the next tick.
 
 ### E-2 — Player defeated in combat
 
 **Trigger**: Node Encounter returns `EncounterOutcome.DidPlayerSurvive == false`.
-**Response**: Run ends immediately. Commit pipeline skips steps 8, 9, 10 entirely — `CombatCommitCounter` does NOT increment, `StormFrontX` does NOT advance. `RunEndReason = CombatDefeat`. Node Map publishes `RunEnded(Defeat)` event.
-**Interaction with E-1**: Combat defeat takes priority over storm advance. If a combat ends in defeat, the storm never ticks for that fight.
+**Response**: Run ends immediately. Commit pipeline skips steps 10–11. **V3 semantics change from V1**: `StormCounter` was already decremented at step 5 (pre-combat), so the storm-tick effect *has already happened* by the time combat resolves. `RunEndReason = CombatDefeat`. Node Map publishes `RunEnded(Defeat)` event.
+**Interaction with E-1**: If step 5's `StormCounterDecrement` triggered a storm advance that caught the player (step 8 Consume sweep), E-1 fires *before* combat begins — E-2 is unreachable in that case. If the storm ticked but did not catch the player, then combat runs normally; a subsequent defeat is a pure E-2. Combat defeat does NOT roll back the pre-combat storm state (design intent: the wasteland moved forward the instant you committed; losing the fight does not un-move the storm).
 
 ### E-3 — Fuel starvation (all Reachable beacons unaffordable)
 
-**Trigger**: At step 10 of the commit pipeline, the Reachable set is empty because every candidate beacon's Fuel cost exceeds `IVehicleView.CurrentFuel`. Note: a beacon is still in the Reachable set if the *only* reason it's unreachable is Fuel — it's flagged `Reachable` but rendered greyed out. Starvation is when even those greyed beacons are the only options AND the player has no way to acquire Fuel.
-**Response**: Run-end with `RunEndReason = FuelStarvation`. Pity-refills violate Pillar 4 (Scarcity with Agency) — the player's Fuel spending was their agency; granting free Fuel on failure erases the consequence. Flagged as OQ-NM1 if playtest data shows starvation is a frequent run-ender (>5% of runs) — then revisit.
+**Trigger**: At step 11 of the commit pipeline (V3), the Reachable set contains no beacon the player can afford. A beacon is still Reachable if only Fuel gates it (rendered greyed out); starvation is when even those greyed beacons are the only options AND no Fuel-source encounter is on offer.
+**Response**: Run-end with `RunEndReason = FuelStarvation`. Pity-refills violate Pillar 4 (Scarcity with Agency) — the player's Fuel spending was their agency; granting free Fuel on failure erases the consequence. V3 target rate: 1–2 fuel-empty *moments* per biome depending on route choices (safe route = 0, balanced = 1, combat-heavy = 1–2); actual run-ends from starvation should be rare because Merchant/Chopshop/Combat fuel injection is always within a few commits' reach. Flagged as OQ-NM1 if playtest data shows starvation is a frequent run-ender (>5% of runs) — then revisit fuel injection rates.
+**Mid-biome failsafe (deferred)**: A once-per-biome scripted Haven-like refill "if the player has bricked the run and there are no fuel-source beacons Reachable" is proposed but deferred; see OQ-NM8. Ship V3 without a failsafe; playtest data decides.
 
 ### E-4 — Graph generation failure
 
@@ -525,8 +594,8 @@ Every edge case states the trigger condition and the explicit system response. N
 ### E-6 — Chassis swap mid-run
 
 **Trigger**: A mechanic (mid-run garage, chassis-swap card, whatever) changes `IVehicleView.ChassisId` after the run has started.
-**Response**: **NOT permitted by this GDD.** Chassis is fixed at run start. If V&P or any other system proposes a chassis-swap mechanic, it is a **contract break** with Node Map — `ChassisStormCadence` and `ChassisMultiplier` lookups assume the chassis is immutable for the run's duration. Flag as a dependency constraint in Section F.
-**If chassis swap is later added**: `CombatCommitCounter` must reset to 0 at swap time (so the incoming chassis gets its full cadence, not an inherited partial counter). Re-designing this is an OQ, not an in-scope edge case.
+**Response**: **NOT permitted by this GDD.** Chassis is fixed at run start. If V&P or any other system proposes a chassis-swap mechanic, it is a **contract break** with Node Map — `ChassisMultiplier[chassis]` (F-NM1) and `MaxFuel[chassis]` (C1.3) assume the chassis is immutable for the run's duration. Flag as a dependency constraint in Section F.
+**If chassis swap is later added (V3 semantics)**: `StormCounter` is chassis-neutral, so no reset is required on swap. What DOES need to reset: `FuelState.Max` must recompute from the new chassis (V3 TD Risk 2 live-derive recommendation makes this automatic on chassis change), and `FuelState.Current` clamps to the new `MaxFuel` if the swap shrinks the tank (Truck → Scout would strand the player at 35+). Re-designing this is an OQ, not an in-scope edge case.
 
 ### E-7 — Mobility offline and only lateral-reachable beacons
 
@@ -555,14 +624,14 @@ Every edge case states the trigger condition and the explicit system response. N
 ### E-11 — Haven reached with storm close behind
 
 **Trigger**: Player commits to Haven. `StormFrontX` is within one pace of `CurrentBeacon.X` (storm was about to catch them).
-**Response**: Haven victory still triggers (per C3.6). Storm does not advance on Haven commit (step 8 skipped for non-combat beacon). The "photo finish" is purely cosmetic — the player wins.
-**Design intent**: Last-second-escape is a player fantasy worth preserving. Don't grief the close finish.
+**Response**: Haven victory still triggers (per C3.6). `BeaconBaseCost[Haven] = 0`, so the storm counter is not decremented on Haven commit — the storm cannot tick on the winning move. The "photo finish" is purely cosmetic — the player wins.
+**Design intent**: Last-second-escape is a player fantasy worth preserving. Don't grief the close finish. Haven fuel refill (`HavenFuelRefillPercent × MaxFuel`) applies on arrival.
 
-### E-12 — `CombatCommitCounter` corruption at save-load
+### E-12 — `StormCounter` corruption at save-load (V3)
 
-**Trigger**: Save file has inconsistent state: `CombatCommitCounter > ChassisStormCadence[chassis]`.
-**Response**: On load, clamp `CombatCommitCounter = min(CombatCommitCounter, ChassisStormCadence[chassis] - 1)`. Log a warning. The next combat will still correctly trigger the storm tick (because the next increment reaches cadence).
-**Why clamp on load, not throw**: Saves can become corrupted (hand edit, crash mid-write). Prefer graceful recovery over rejected saves; log so it's visible in telemetry.
+**Trigger**: Save file has inconsistent state: `StormCounter <= 0` at rest, or `StormCounter > StormCounterStart` for the current biome.
+**Response**: On load, clamp `StormCounter = max(1, min(StormCounter, StormCounterStart))`. Log a warning. The next commit still correctly ticks the counter (because clamped values still decrement normally).
+**Why clamp on load, not throw**: Saves can become corrupted (hand edit, crash mid-write). Prefer graceful recovery over rejected saves; log so it's visible in telemetry. Invariant I-10 remains held post-clamp.
 
 ### E-13 — All beacons in the current biome Consumed, but gate-funnel beacon unreached
 
@@ -578,20 +647,20 @@ Bidirectional listing of every system Node Map depends on or that depends on Nod
 
 #### Vehicle & Part (CRITICAL)
 
-**What Node Map needs**:
-- `IVehicleView.CurrentFuel` (int, read every frame map is open)
-- `IVehicleView.ChassisId` (enum, read per commit)
+**What Node Map needs (V3)**:
+- `RunState.Fuel.Current` (int, read every frame map is open) — replaces V1 `IVehicleView.CurrentFuel`; per V3 TD verdict Q1, fuel lives on `RunState.Fuel : FuelState` POCO, not on `Vehicle`
+- `IVehicleView.ChassisId` (enum, read per commit — used for `ChassisMultiplier` lookup)
 - `IVehicleView.SubsystemStates[SlotType]` (read per `IsValidCommit` call)
-- `IVehicleMutator.SpendFuel(int amount) : bool` (called once per commit)
-- Chassis stat block defining `ChassisMultiplier` (Scout 0.8, Assault 1.0, Truck 1.3) as per F-NM1
+- `RunState.Fuel.Spend(int baseCost, float chassisMult) → FuelSpend` (called once per commit at pipeline step 4-5; returns applied fuel drain + storm decrement)
+- Chassis stat block defining `ChassisMultiplier` (Scout 0.7, Assault 1.0, Truck 1.5) and `MaxFuel` (Scout 35, Assault 50, Truck 75) as per F-NM1
 - **Contract**: Chassis is immutable for the run's duration (see E-6)
 
-**RETROFIT required in V&P GDD**:
-- Add `SpendFuel(int)` verb to `IVehicleMutator` (currently only `ApplyDamage` and `AddArmor` exist per Slice-5c unity refactor)
+**RETROFIT required in V&P GDD (V3)**:
+- Move Fuel from `Vehicle` to `RunState.Fuel : FuelState` POCO (V3 TD Q1). Delete `CurrentFuel` from `Vehicle` DTO if still authored there.
 - Expose `SubsystemStates[SlotType]` map on `IVehicleView` (Weapon/Engine/Mobility/Frame → Online/Degraded/Offline)
 - Document chassis-immutability contract explicitly in V&P GDD dependencies section
-- Add fuel-burn multiplier to chassis stat block (Scout 0.8, Assault 1.0, Truck 1.3)
-- Add `CurrentFuel` to `Vehicle` POCO and DTO
+- Add fuel-drain multiplier to chassis stat block (Scout **0.7**, Assault 1.0, Truck **1.5**) — retunes from V1 (0.8/1.0/1.3)
+- Add `MaxFuel` per chassis (Scout 35 / Assault 50 / Truck 75). `RunState.Fuel.Max` is derived at `StartRun` from `Chassis.MaxFuel` (V3 TD Risk 2 recommends live-derive on FromDto so post-EA balance patches take effect on existing saves)
 
 #### Save & Persistence (BIDIRECTIONAL)
 
@@ -601,12 +670,17 @@ Bidirectional listing of every system Node Map depends on or that depends on Nod
 - Respect for `IsCommitInProgress` contract (E-5)
 
 **What Save needs from Node Map**:
-- `NodeMapDto` shape (defined in C3.2): `{RunSeed, StormFrontX, CombatCommitCounter, CurrentBeaconId, Beacons[], BiomeIndex}`
+- `NodeMapDto` shape (defined in C3.2 V3): `{RunSeed, StormFrontX, StormCounter, CurrentBeaconId, Beacons[], BiomeIndex}` — V3 replaces `CombatCommitCounter` with `StormCounter`
 - `IsCommitInProgress : bool` property
 
-**RETROFIT required in Save GDD**:
+**What Save needs from RunState (V3, cross-ref)**:
+- `RunStateDto` additive fields: `FuelCurrent`, `FuelMax` (or live-derived, TD Risk 2), `StormCounter` — SCHEMA_VERSION++
+- `SCHEMA_VERSION++` per ADR-0004 standard bump; EA saves predating V3 fuel fail check → partial-skip → "start new run" non-blocking prompt
+
+**RETROFIT required in Save GDD (V3)**:
 - Add `INodeMapSerializable` (or generic `INodeMapStateProvider`) to the serializer registry
 - Document the `IsCommitInProgress` pre-save check as part of the serializer contract
+- Bump `RunStateDto.SCHEMA_VERSION` (standard ADR-0004 additive)
 
 #### Game Pillars (CONSTRAINT)
 
@@ -631,6 +705,16 @@ Bidirectional listing of every system Node Map depends on or that depends on Nod
 - `EncounterOutcome` return shape: `{BeaconType, WasCombatRewardClosed, DidPlayerSurvive}`
 
 **RETROFIT status**: Node Encounter GDD **designed and approved 2026-04-23**. Card Combat R15 `EncounterType` authoring contract **closed 2026-04-24**: Node Map owns per-node `EncounterType` authoring + the boss-node validator (AC-NM45c); NE owns dispatch pass-through (NE AC-NE27a / AC-NE27b); Card Combat owns turn-order and starting-position semantics (Card Combat R15 / S2 / F-CC5). Hand-off interface is `INodeEncounterHandler.Begin(beacon, runSeed, frameState, economy, outcomeCallback)` per C3.5.
+
+**V3 fuel-verb economy retrofit (2026-07-02) — REQUIRED**: Rest fuel refund, Convert fuel yield (Event favorable outcome), and Scrap→Fuel conversion rate at Chopshop MUST be **chassis-scaled** so Rest / Convert / Chopshop are net-positive fuel verbs for all three chassis, per AC-NM54b. V3 default table (owned by Node Encounter GDD; reproduced here for the contract):
+
+| Verb | Scout | Assault | Truck | Rationale |
+|---|---|---|---|---|
+| `RestFuelRefund` | 2 | 3 | 5 | Truck's Rest cost is 5 (ceil(3 × 1.5)); refund must match to avoid net-negative |
+| `ConvertFuelYield` (Event favorable) | 4 | 5 | 7 | ≥ 0.5 × Truck-Combat drain (12/2 = 6, rounded up to 7) |
+| `ScrapPerFuelRate` (Chopshop) | 4 | 4 | 6 | Truck's 20 scrap → 20/6 ≈ 3.3 fuel < half Combat drain — flag as tune-up target (raise Truck rate to 3 if AC-NM54b simulation fails post-slice); shipping value satisfies the invariant at biome-1 numbers |
+
+If Node Encounter GDD authors chassis-neutral defaults instead, biome-1 assets fail AC-NM54b at simulation and Node Map's Pillar-2 contract breaks. Values must move together with V3 lock.
 
 #### Loot & Reward (DOWNSTREAM — not yet designed)
 
@@ -669,13 +753,13 @@ Bidirectional listing of every system Node Map depends on or that depends on Nod
 
 Per CD Condition 3 and the "NOT a real-time map" anti-pillar:
 
-- **Card Combat must NOT advance `StormFrontX`** — no combat event, card effect, status tick, or damage pipeline step may touch storm state.
-- **Card Combat must NOT modify `CurrentFuel`** — no card effect, loot, or on-combat-end hook may add or deduct Fuel.
-- **Card Combat must NOT read `StormFrontX`** — combat simulation has no knowledge of map state.
+- **Card Combat must NOT advance `StormFrontX` or decrement `StormCounter`** — no combat event, card effect, status tick, or damage pipeline step may touch storm state. V3 architecture guarantees this by design: storm decrement fires at commit pipeline step 5, *before* `EnterCombat` at step 9.
+- **Card Combat must NOT modify `RunState.Fuel`** — no card effect, loot, or on-combat-end hook may add or deduct Fuel. `CombatReward.Fuel` is applied at pipeline step 10 by Node Encounter's reward handler, outside the combat simulation surface.
+- **Card Combat must NOT read `StormFrontX`, `StormCounter`, or `RunState.Fuel`** — combat simulation has no knowledge of map state or fuel budget.
 
 **Enforcement**: `#if DEBUG` assert in Node Map's storm-advance method that `Phase == OnMap`. Stops any combat-layer leak loudly in development.
 
-**RETROFIT required in Card Combat GDD**: Add a "Non-Interaction with Node Map" row to the V&P Interactions table — specifically note that `DamagePipeline.Apply` never touches Fuel, and that no status effect (Burning, Shield, Corrode, etc.) interacts with `StormFrontX`. This is easy because it's a **statement of what NOT to do**, but it needs to be explicit so a future card designer doesn't accidentally author a "burn fuel on damage" card.
+**RETROFIT required in Card Combat GDD (V3)**: Add a "Non-Interaction with Node Map" row to the V&P Interactions table — specifically note that `DamagePipeline.Apply` never touches Fuel, and that no status effect (Burning, Shield, Corrode, etc.) interacts with `StormFrontX` or `StormCounter`. Rewards flow: combat produces a `CombatReward(int Scrap, CardOffer Choices, int Fuel = 0)` per ADR-0013 V3 amendment; the reward payload is *returned* to Node Encounter at combat end, not applied inside the combat scene. Card Combat therefore does not need to know about fuel state at all.
 
 #### Status Effects (INDIRECT)
 
@@ -701,33 +785,73 @@ Status Effects do not interact with Node Map directly. However, status effects t
 
 Every knob below is a runtime-configurable value (ScriptableObject or data table per CLAUDE.md "no hardcoded gameplay values"). Each row specifies a safe range, the default, the gameplay aspect it controls, and which pillar or formula it feeds. Knobs outside their safe range are not bugs in the system — they are **design statements** that require a pillar review.
 
-### G.1 Fuel Economy Knobs
+### G.1 Fuel Economy Knobs (V3)
+
+**Beacon base cost table (biome 1)** — owned by `Biome1Distribution.asset` (`BiomeDistributionSO`):
+
+| Beacon Type | Default | Safe Range | Affects | Pillar / Formula |
+|---|---|---|---|---|
+| `BeaconBaseCost[Haven]` | 0 | LOCKED 0 | Zero-cost terminal beacon | Pillar 3 / F-NM1 / F-NM2 |
+| `BeaconBaseCost[Rest]` | 3 | 2–4 | Cheapest breather beat | Pillar 4 / F-NM1 |
+| `BeaconBaseCost[Merchant]` | 4 | 3–5 | Merchant commit cost | Pillar 4 / F-NM1 |
+| `BeaconBaseCost[Chopshop]` | 4 | 3–5 | Chopshop commit cost | Pillar 4 / F-NM1 |
+| `BeaconBaseCost[Event]` | 5 | 4–6 | Event commit cost | Pillar 4 / F-NM1 |
+| `BeaconBaseCost[Combat]` | 8 | 6–10 | Combat commit cost | Pillar 4 / F-NM1 |
+| `BeaconBaseCost[EliteCombat]` | 12 | Combat × 1.5 (LOCKED ratio) | Elite commit cost | Pillar 2 / F-NM1 |
+
+**Chassis fuel-drain multipliers** — owned by V&P GDD chassis stat block:
+
+| Knob | Default | Safe Range | Affects | Pillar |
+|---|---|---|---|---|
+| `ChassisMultiplier[Scout]` | 0.7 | 0.6–0.8 | Scout fuel drain per commit | Pillar 2 |
+| `ChassisMultiplier[Assault]` | 1.0 | LOCKED 1.0 | Assault fuel drain (calibration baseline) | Pillar 2 |
+| `ChassisMultiplier[Truck]` | 1.5 | 1.3–1.7 | Truck fuel drain per commit | Pillar 2 |
+
+**Tank sizes (`MaxFuel`)** — owned by V&P GDD chassis stat block:
+
+| Knob | Default | Safe Range | Affects | Pillar |
+|---|---|---|---|---|
+| `MaxFuel[Scout]` | 35 | 30–45 | Scout tank capacity | Pillar 2 |
+| `MaxFuel[Assault]` | 50 | 45–60 | Assault tank capacity | Pillar 2 |
+| `MaxFuel[Truck]` | 75 | 65–85 | Truck tank capacity | Pillar 2 |
+
+**Route-constraint knobs**:
 
 | Knob | Default | Safe Range | Affects | Pillar / Formula |
 |---|---|---|---|---|
-| `FuelCostBase` | 2 | 1–5 | Base Fuel cost per commit | Pillar 4 (routing pacing intensity) / F-NM1 |
-| `FuelCostLateralSurcharge` | 1 | 0–3 | Extra Fuel for lateral-adjacent commits | Pillar 5 (critical-path tension) / F-NM1 |
-| `EngineOfflineSurcharge` | 1 | 0–2 | Fuel penalty when Engine is Offline (RC-E1) | Pillar 5 / F-NM1 / RC-E1 |
+| `EngineOfflineSurcharge` | 1 (interim; percentage rescale OQ-NM7) | 0–3 (interim) | Fuel penalty when Engine is Offline (RC-E1) | Pillar 5 / F-NM1 / RC-E1 |
+
+**Retired V1 knobs** (kept for historical clarity; do NOT reintroduce without a Pillar review):
+- `FuelCostBase` — retired (replaced by `BeaconBaseCost[type]` table)
+- `FuelCostLateralSurcharge` — retired (deferred pending playtest; V3 counter already prices lateral moves)
 
 **Notes**:
-- Increasing `FuelCostBase` compresses Scout's horizon and tightens Truck's spine. A value above 3 makes even Scout struggle; below 1 makes Fuel feel free (Pillar 4 break).
-- `FuelCostLateralSurcharge = 0` erases the "critical-path-vs-detour" design tension — lateral becomes identical to forward.
-- `EngineOfflineSurcharge` above 2 stacks with `FuelCostLateralSurcharge` and `Truck ×1.3` to produce commit costs that can't be afforded — verify against E-3 starvation rates before going high.
+- Raising Combat base cost above 10 makes a Truck's Combat commit (18 with `×1.5`, 19 with Engine offline) approach starvation territory on the 75 tank across a full biome; verify against target 1–2 empty moments per biome.
+- Lowering `BeaconBaseCost[Combat]` below 6 breaks the Combat = 4 × Rest ratio, making Rest/Merchant beacons feel identical in threat weight to Combat — Pillar 3 legibility risk.
+- Elite base **must remain Combat × 1.5**. Locked ratio; changing it needs a Pillar 2 review.
+- Scout `ChassisMultiplier` below 0.6 makes Scout fuel-immortal (Pillar 4 break); above 0.8 collapses Scout distinctness from Assault.
+- Truck `ChassisMultiplier` above 1.7 stacks with Elite base 12 into per-commit costs of 20+ (Engine offline), which the 75 tank cannot sustain across a biome without over-generous Fuel injection.
+- `MaxFuel` values are the primary knob for tuning "1–2 empty moments per biome depending on choices" (V3 design target). Tighten if empty-rate telemetry runs below 0.5/biome; loosen if it runs above 2.5/biome.
+- `EngineOfflineSurcharge` percentage rescale (OQ-NM7): under V3 base costs (8, 12), a flat +1 is ~10% of Combat and ~8% of Elite — probably fine but flagged for review after first-playable telemetry.
 
-### G.2 Storm Knobs
+### G.2 Storm Knobs (V3)
 
 | Knob | Default | Safe Range | Affects | Pillar / Formula |
 |---|---|---|---|---|
-| `StormPaceX` | 1 strip width (~128px on 1920-wide canvas) | 0.5×strip to 1.5×strip | Distance storm advances per tick | Pillar 5 / F-NM2 |
+| `StormCounterStart[biome1]` | 30 | 25–40 | Storm counter start value (chassis-neutral) | Pillar 5 / F-NM2 |
+| `StormPaceX` | 1 strip width (LOCKED) | 1 strip only | Distance storm advances per tick | Pillar 5 / F-NM2 |
 | `StormStartOffset` | 0.5 strip width | 0 to 2 strip widths | Initial safety margin at run start | Pillar 3 (grace period) |
-| `ChassisStormCadence[Scout]` | 3 | 2–5 | Combats before storm ticks (Scout) | Pillar 2 / F-NM7 |
-| `ChassisStormCadence[Assault]` | 2 | 1–4 | Combats before storm ticks (Assault) | Pillar 2 / F-NM7 |
-| `ChassisStormCadence[Truck]` | 1 | 1–2 | Combats before storm ticks (Truck) | Pillar 2 / F-NM7 |
+| `HavenFuelRefillPercent` | 0.5 (50%) | 0.25–0.75 | Fuel refill on Haven arrival (per biome) | Pillar 4 / C1.2 |
+
+**Retired V1 knobs**:
+- `ChassisStormCadence[]` — retired 2026-07-02 (F-NM7). Chassis identity at map layer moves to `MaxFuel` + `ChassisMultiplier`, both in G.1.
 
 **Notes**:
-- `StormPaceX` above 1.5 strip widths means the storm can skip a whole strip of beacons on a single tick — legibility becomes brittle. Below 0.5 means the storm advances imperceptibly.
+- `StormCounterStart = 30` at biome 1 was chosen so a "safe route" (heavy Rest/Merchant, target 3–4 fuel per commit) triggers zero storm ticks per biome; a "balanced route" triggers ~1 tick; a "combat-heavy route" (Combat + Elite mix) triggers 1–2 ticks. Below 25 makes the storm feel constantly active (loses agency); above 40 makes storm ticks feel inert.
+- Biome 2 and biome 3 will likely tune `StormCounterStart` downward (~28, ~25) to intensify the chase — biome-specific tuning is the intended tuning surface, not per-chassis differentiation.
+- `StormPaceX` locked at 1 strip: this is a design invariant (one strip per tick), not a tunable — changing it requires re-authoring the strip-based map legibility contract.
 - `StormStartOffset = 0` means the storm is already touching the run-start beacon at t=0 — a harsh opener. Above 2 strip widths gives the player a free "first biome grace" that dulls the pillar.
-- **Ordering constraint on `ChassisStormCadence`**: Scout > Assault > Truck **must be preserved**. Equal values across chassis is a Pillar-2 break. Inverted values (Truck > Scout) would flip the chassis fantasy entirely — this is allowed only as a deliberate "thematic rework" with creative-director sign-off.
+- `HavenFuelRefillPercent` above 0.75 makes biome N+1 feel like a fresh run (breaks the between-biome tension the Haven-refill design is preserving). Below 0.25 makes Haven feel useless as a checkpoint.
 
 ### G.3 Risk-Tilt Knobs
 
@@ -764,13 +888,19 @@ These are listed for completeness so they are not mistaken for tuning knobs. Cha
 | `ForwardConeAngle` | 45° | Graph-generator constraint; changes would alter map feel categorically. |
 | `MaxConnectionsPerBeacon` | 3 | Input legibility cap — four forks at one node overwhelms Pillar 3. |
 | `MaxGenerationRetries` | 100 | Implementation-detail fallback; should never fire in practice (E-4). |
+| `StormPaceX` | 1 strip width | V3 lock — one strip per tick is the design grammar; changing means re-authoring the storm-progress readability contract. |
+| **`ChassisMultiplier[Assault]`** | 1.0 | Calibration baseline — Scout and Truck are defined as multiples relative to Assault; changing Assault means retuning everything. |
+| **Elite / Combat ratio** | 1.5 (Elite = Combat × 1.5) | Design-invariant Elite-is-a-harder-Combat framing; breaking this is a Pillar 2 review. |
+| **`BeaconBaseCost[Haven]`** | 0 | Terminal beacon; must not tick the storm on the winning move (E-11). |
 
 ### G.6 Knobs NOT Listed in This Section
 
-Two classes of values referenced by Node Map are tuned elsewhere and must NOT be duplicated here:
+Three classes of values referenced by Node Map are tuned elsewhere and must NOT be duplicated here:
 
-- **`ChassisMultiplier`** (Scout 0.8, Assault 1.0, Truck 1.3) — owned by V&P GDD chassis stat block. Referenced by F-NM1. Node Map consumes the authoritative V&P value; do not redefine here.
-- **Beacon type distributions** (e.g., "60% Combat, 15% Elite, 10% Merchant, …") — owned by Node Encounter GDD per-biome. Node Map reads these at generation time; does not author them.
+- **`ChassisMultiplier`** (Scout 0.7, Assault 1.0, Truck 1.5) — owned by V&P GDD chassis stat block. Referenced by F-NM1. Reproduced in G.1 for legibility (with the correct owner marked).
+- **`MaxFuel`** (Scout 35, Assault 50, Truck 75) — owned by V&P GDD chassis stat block. Reproduced in G.1 for legibility.
+- **Beacon type distributions** (e.g., "60% Combat, 15% Elite, 10% Merchant, …") — owned by Node Encounter GDD per-biome via `BiomeDistributionSO`. Node Map reads these at generation time; does not author them.
+- **`CombatReward.Fuel` roll size + distribution** — owned by Loot & Reward GDD per ADR-0013 V3 amendment. Node Map reads via the reward payload; does not author.
 
 ## Visual/Audio Requirements
 
@@ -838,15 +968,17 @@ Per C4, each constraint has a visual signal:
 - **RC-M1 (Mobility offline)**: lateral beacons render as described in H.1.5; additionally, a persistent "MOBILITY OFFLINE — LATERAL LOCKED" banner at the bottom of the map HUD while active.
 - **RC-F1 (Frame degraded)**: **NO visual signal** (hidden effect per C4.1). Do not accidentally expose it via animation or hint text.
 
-#### H.1.7 Storm Cadence UI (CombatCommitCounter)
+#### H.1.7 Storm Counter UI (V3 — `StormCounter` display)
 
 Required UI element per Pillar 3. Displays:
 
-- Current chassis's `ChassisStormCadence` (e.g., "3")
-- Current `CombatCommitCounter` value (e.g., "2/3")
-- Placement: near the storm front or in a persistent corner of the map HUD
-- Visual: an ammo-style pip indicator preferred over text-only (faster read)
-- Tick animation: when a combat resolves and the counter fills a pip, the pip lights up. When the last pip fills, the full counter flashes, then drains while the storm advance animation plays.
+- Current `StormCounter` value as a large integer (e.g., "**24**") — this is the visible fuel-clock
+- Current `StormCounterStart[biome]` as the "max" reference (e.g., "24 / 30") shown smaller under or beside the main number
+- Placement: persistent corner of the map HUD, adjacent to the fuel tank readout so the eye reads both together
+- Visual: primary is a numeric readout, backed by a horizontal bar or ring fill (Bar `StormCounter / StormCounterStart`). Ammo-pip metaphor is retired — pip granularity does not read well when a single Combat commit spends 8 pips at once
+- Hover tooltip: `"Storm ticks when this counter reaches 0. Each beacon commit decrements the counter by its base cost."`
+- Beacon hover interaction: hovering a Reachable beacon **previews** the storm counter drop — the counter dims by the amount the commit would drain, showing the future value (e.g., current 24, hovering Combat base 8 → dim overlay reads "16"). If preview would cross zero, the preview flashes with a "STORM ADVANCES" warning glyph
+- **Tick animation** (fired during commit travel animation H.1.11): as the fuel tank drains its per-beacon amount, `StormCounter` decrements 1-by-1 in sync. If the counter crosses 0 mid-drain, it flashes, the storm front slides (0.4–0.6s dust-front slide from H.1.4), then the counter resets to `StormCounterStart` and continues visibly displaying the new value.
 
 #### H.1.8 Run-End Visuals
 
@@ -866,6 +998,31 @@ When the player commits from the Strip-5 gate beacon of biome N into biome N+1:
 
 - Haven beacon has a perceptible glow/halo at all distances (beacon is visible from anywhere in Biome 3).
 - On commit to Haven, the screen transitions from "map view" to a Haven cinematic/arrival handled by Run Meta GDD (not this GDD). Node Map's responsibility ends at the commit.
+- **Haven fuel refill** (V3): `HavenFuelRefillPercent × MaxFuel` (default 50%) is added to `RunState.Fuel.Current` at Haven arrival, clamped to `MaxFuel`. Visual: fuel tank fills to the refill target with a distinct "resupply" animation (~1.5s) that reads as *incomplete* refill (tank does not hit full — reinforces the between-biome tension).
+
+#### H.1.11 Commit Travel Animation (V3 — anchors D1 decision from V3 lock session)
+
+The commit-to-encounter transition is the single largest V3 readability moment. It is a **~3-second continuous beat** during which the vehicle traverses the map edge from the source beacon to the target and the player's HUD numbers close in sync with the travel. Nothing about this animation is skippable in V3 — the beat is the readability contract.
+
+**Sequence** (target 3 seconds end-to-end; tunable ±0.5s in accessibility settings):
+
+1. **T=0**: Player commits. Commit pipeline runs steps 1–5 instantly (validation, cost query, fuel deduct, storm counter decrement). All three HUD readouts (fuel tank, cost pill on the target beacon, storm counter) begin animating simultaneously.
+2. **T=0 → T=3s**: Vehicle icon slides along the committed edge from source to target. Motion curve: ease-in for the first 0.5s, linear middle 2s, ease-out into the target beacon 0.5s. The edge line "burns off" behind the vehicle in the vehicle's faction color.
+3. **T=0 → T=~2s**: Fuel tank drains **1-by-1** from `pre-spend` to `post-spend` value. Cost pill on the target beacon counts DOWN from base cost to 0 in sync with the tank drain (so the player sees fuel *leaving the tank* and *arriving at the beacon*). Storm counter also decrements 1-by-1 in sync (`BeaconBaseCost` ticks). All three ticks are visually synchronous — 1 unit per ~65ms if the drain is 30 units, ~200ms if the drain is 10 units. Cost pill matches the tank ticker exactly; storm counter matches the base-cost portion of the ticker.
+4. **Mid-drain storm advance**: If `StormCounter` hits 0 mid-drain (typical Combat/Elite commit late in a biome), the counter flashes, freezes at 0 for ~0.2s, the storm front slides one strip right (H.1.4 dust-slide, 0.4–0.6s), then the counter resets to `StormCounterStart` and continues decrementing from that new value with any *remaining* base cost still to spend. Vehicle travel does NOT pause — the storm advance happens *alongside* the travel, not instead of it.
+5. **T=~2s → T=3s**: All three tickers settle. Vehicle reaches the target beacon. Fuel tank shows post-commit total. Cost pill absorbs into the beacon (fades to 0-opacity). Storm counter shows resting value.
+6. **T=3s+**: Commit pipeline resumes at step 6 (beacon-state transitions). Consume sweep runs. If storm has caught player, transition to run-end. Else, transition to Node Encounter handler (Combat scene loads, or Merchant/Rest/Event handler opens).
+
+**Anti-cases** (things the animation must NOT do):
+
+- Vehicle must not "teleport" past the target beacon during a mid-drain storm advance — travel is continuous even when storm animation overlaps.
+- Fuel tank ticker must not "front-load" — draining 8 fuel in one big drop then holding for 2s reads as broken. Every unit is a visible tick.
+- Cost pill on target must not disappear before the fuel tank ticker finishes — they arrive at 0 together.
+- Storm counter must not "skip" the flash on zero-crossing — the flash is the wasteland reclaiming the road, and it needs to land as a perceptual event.
+
+**Accessibility**: Reduce-Motion setting can drop the sequence to a fast-cut (0.5s) with the tickers landing in one step. Screen-reader announcement fires *after* the drain resolves: `"Traveled to <beacon type>. <N> fuel remaining. Storm counter <M>. <Optional: Storm advanced one strip.>"`
+
+**Combat non-interaction contract cross-ref** (CD Condition 3 / C3.4 V3): the storm advance happens fully within this 3-second animation — before `EnterCombat` fires. Combat sees a static storm state. State-machine correctness is preserved; readability is served.
 
 ### H.2 Audio Requirements
 
@@ -925,13 +1082,13 @@ The map screen is a single full-screen view. Layout zones (Unity UI Toolkit — 
 │                                                             │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│  [Storm cadence pips]   [Biome name]    [Pause/Menu]        │ ← HUD bottom bar (map-specific)
+│  [Storm counter 24/30]  [Biome name]    [Pause/Menu]        │ ← HUD bottom bar (map-specific)
 └─────────────────────────────────────────────────────────────┘
 ```
 
 - **HUD top bar (vehicle panel)**: persistent readout of vehicle state. Reads from `IVehicleView`. Never occludes the map canvas.
 - **Biome canvas**: per H.1.1. Fills the central region. This is the only clickable/hoverable zone.
-- **HUD bottom bar (map-specific)**: storm cadence pip indicator (H.1.7), current biome name, pause/menu button.
+- **HUD bottom bar (map-specific)**: storm counter readout (H.1.7 — numeric `StormCounter / StormCounterStart` + backing ring/bar), current biome name, pause/menu button.
 
 ### I.2 Persistent HUD Elements (top bar)
 
@@ -946,7 +1103,7 @@ The subsystem row is **clickable** — clicking or hovering a subsystem icon too
 
 ### I.3 Map-Specific HUD Elements (bottom bar)
 
-- **Storm cadence pips** (per H.1.7): `ChassisStormCadence[chassis]` pips, with `CombatCommitCounter` lit. Tooltip: "Storm advances every N combats (chassis: [name]). You've fought [X] since the last storm tick."
+- **Storm counter readout** (per H.1.7): current `StormCounter` value with `StormCounterStart[biome]` as reference (`"24 / 30"`), backed by a ring or horizontal bar (`StormCounter / StormCounterStart` fill). Tooltip: `"Storm advances when this counter reaches 0. Each beacon commit decrements the counter by that beacon's base cost (chassis-neutral)."` Hovering a Reachable beacon previews the counter drop by that beacon's base cost.
 - **Biome name panel**: current biome name + biome index (e.g., "Biome 2 of 3: Rust Flats"). Tooltip lists completed vs. total beacons in biome for player memory support.
 - **Pause/Menu button**: opens game menu (handled by global UI, not this GDD).
 
@@ -990,7 +1147,7 @@ Per `.claude/docs/technical-preferences.md` — "All core interactions must be k
 - **Color-blind support**: Beacon state (Unvisited/Reachable/Current/Visited/Consumed) MUST be distinguishable without color. Primary channels: opacity, pulse animation, silhouette outline. Color is additive.
 - **Beacon type silhouettes** (H.1.2) must be unique shapes — do not rely on color to distinguish Combat from Merchant from Elite.
 - **Text scaling**: cost labels and banners scale with the game's UI scale setting. Minimum legible size: 16pt at 1080p.
-- **Screen reader support**: every beacon must have an accessible name combining its type, state, and cost (e.g., "Combat encounter, reachable, 2 fuel"). Storm cadence pips expose a text alternative ("2 of 3 combats until storm advances").
+- **Screen reader support**: every beacon must have an accessible name combining its type, state, and cost (e.g., "Combat encounter, reachable, 2 fuel"). The storm counter readout exposes a text alternative combining current value, reference, and next-tick preview (e.g., "Storm counter 24 of 30. Committing to this Combat drops it to 16. Storm advances at 0.").
 - **Keyboard-only playable**: no feature requires mouse or gamepad. Confirmed covered by I.4.1–I.4.3.
 - **Motion sensitivity**: storm noise band tendrils and storm advance animation should respect a "Reduce Motion" accessibility setting (owned by global accessibility; fallback to a static front line when enabled).
 
@@ -1035,23 +1192,30 @@ Each criterion is independently testable. Verification method in parentheses: **
 - **AC-NM7** Two adjacent beacons are never both Elite encounters. *(Automated)*
 - **AC-NM8** Generation completes in <50ms on the target spec (2020 mid-range PC, single thread). *(Automated perf)*
 
-### J.2 Storm Model
+### J.2 Storm Model (V3)
 
 - **AC-NM9** `StormFrontX` begins each run at `-StormStartOffset` regardless of chassis. *(Automated)*
-- **AC-NM10** `CombatCommitCounter` starts at 0 and increments by exactly 1 on each Combat reward-screen close. *(Automated)*
-- **AC-NM11** The storm advances by exactly `StormPaceX` when and only when `CombatCommitCounter >= ChassisStormCadence[chassis]`; the counter resets to 0 on the same tick. *(Automated)*
-- **AC-NM12** Non-combat node resolutions (Event, Shop, Repair) do NOT increment `CombatCommitCounter` and do NOT advance the storm. *(Automated)*
-- **AC-NM13** The storm never advances mid-combat; no hook inside `CombatLoop` mutates `StormFrontX` or the counter. *(Automated — static analysis + runtime assertion)*
+- **AC-NM10** `StormCounter` starts at `StormCounterStart[biome]` (biome 1 = 30) and decrements by exactly `BeaconBaseCost[B.Type]` on each beacon commit, chassis-neutral (Scout, Assault, Truck all decrement identically for the same beacon type). *(Automated)*
+- **AC-NM11** The storm advances by exactly `StormPaceX` (1 strip) when and only when `StormCounter` reaches or drops below 0 on a commit; the counter resets to `StormCounterStart[currentBiome]` on the same tick. *(Automated)*
+- **AC-NM12** All non-Haven beacons (Rest, Merchant, Chopshop, Event, Combat, EliteCombat) decrement `StormCounter` by their `BeaconBaseCost`. Haven has `BeaconBaseCost = 0` and does not decrement the counter. *(Automated)*
+- **AC-NM13** The storm never advances during combat; the decrement + advance fires at commit pipeline step 5, **before** `EnterCombat` at step 9. Runtime `#if DEBUG` assert throws if the decrement method is called while `NodeMap.Phase != OnMap`. *(Automated — static analysis + runtime assertion)*
 - **AC-NM14** Any beacon whose X is less than `StormFrontX` transitions to `Consumed` on the same frame a storm advance applies. *(Automated)*
-- **AC-NM15** Playtest survey: Scout runs feel "breath-room to scout ahead"; Truck runs feel "actively chased"; Assault sits between. *(Playtest survey — ≥70% agreement)*
+- **AC-NM15** Playtest survey (V3 retune): Scout runs feel "more commits per tank"; Truck runs feel "each commit costs more"; all three chassis feel *equally* pressured by the storm cadence itself. *(Playtest survey — ≥70% agreement)*
+- **AC-NM15a** `StormCounter <= 0` never observed at rest (Invariant I-10): between any two commits the counter reads `[1, StormCounterStart]`. *(Automated)*
+- **AC-NM15b** `BeaconBaseCost[type] <= StormCounterStart[biome]` for every beacon type in every biome asset (Invariant I-11); asset validation fails if the invariant is violated. *(Automated — biome asset validation on load)*
 
-### J.3 Fuel Cost
+### J.3 Fuel Cost (V3)
 
 - **AC-NM16** `ComputeFuelCost(A, B, chassis, state)` returns identical integers for identical inputs — pure function, no RNG, no hidden state. *(Automated)*
-- **AC-NM17** Lateral edges incur `FuelCostLateralSurcharge` on top of base cost; forward edges do not. *(Automated)*
+- **AC-NM17** Fuel cost equals `max(1, ceil(BeaconBaseCost[B.Type] × ChassisMultiplier[chassis]))` (plus `EngineOfflineSurcharge` if applicable). Scout ×0.7 on Combat base 8 = 6; Truck ×1.5 on Combat = 12; Assault ×1.0 on Elite = 12. *(Automated)*
 - **AC-NM18** When `SubsystemStates[Engine] == Offline`, every displayed fuel cost includes `EngineOfflineSurcharge`, and the HUD annotates "+1 Engine offline". *(Automated + Manual)*
-- **AC-NM19** Attempting to commit an edge where `CurrentFuel < ComputeFuelCost` is rejected by `IsValidCommit` and produces a specific "insufficient fuel" UI cue. *(Automated + Manual)*
-- **AC-NM20** Committing an edge decrements `CurrentFuel` by exactly the computed cost — no double-spend, no rounding drift. *(Automated)*
+- **AC-NM19** Attempting to commit an edge where `RunState.Fuel.Current < ComputeFuelCost` is rejected by `IsValidCommit` and produces a specific "insufficient fuel" UI cue. *(Automated + Manual)*
+- **AC-NM20** Committing an edge decrements `RunState.Fuel.Current` by exactly the computed cost — no double-spend, no rounding drift. `FuelState.Spend` returns the exact cost applied so caller can verify. *(Automated)*
+- **AC-NM20a** V3 `FuelState.Spend(baseCost, chassisMult)` returns both fuel drain (chassis-scaled) and storm decrement (chassis-neutral base cost) atomically. Given identical `(baseCost, chassisMult)` inputs, the return value is bit-identical across two calls. *(Automated)*
+- **AC-NM20b** `MaxFuel` per chassis matches V3 lock: Scout 35, Assault 50, Truck 75. `MaxFuel` is live-derived from `Chassis` on `FromDto` per V3 TD Risk 2 recommendation. *(Automated)*
+- **AC-NM20c** `HavenFuelRefillPercent × MaxFuel` is added to `RunState.Fuel.Current` on Haven arrival, clamped to `MaxFuel`. Biome 1 default `HavenFuelRefillPercent = 0.5`. *(Automated)*
+- **AC-NM20d** `CombatReward.Fuel` applied at pipeline step 10 is clamped: `FuelState.Current = min(FuelState.Current + reward.Fuel, FuelState.Max)`. Overflow beyond `MaxFuel` is discarded silently (no rollover, no scrap-yield fallback). Given a Truck at `Fuel.Current=70` and a `CombatReward(Fuel=10)`, `Fuel.Current` reads `75` (`MaxFuel`), not `80`. *(Automated)*
+- **AC-NM20e** Engine-offline storm decrement is unchanged from Engine-online. `StormCounter -= BeaconBaseCost[type]` uses the raw base cost regardless of subsystem state — `EngineOfflineSurcharge` (F-NM1) affects only the fuel-drain path, never the storm-counter path. Given a Combat commit with Engine offline, fuel drain is `ceil(8 × chassisMult) + 1`, but the storm counter still drops by exactly 8. *(Automated)*
 
 ### J.4 Route Constraints
 
@@ -1060,6 +1224,7 @@ Each criterion is independently testable. Verification method in parentheses: **
 - **AC-NM23** RC-W1 (Weapon Offline) adds a red "Elite warning" overlay to any edge leading to an Elite beacon but does NOT block commit. *(Automated + Manual)*
 - **AC-NM24** RC-E1 (Engine Offline) matches AC-NM18; the +1 Fuel surcharge applies to all edges, not only forward. *(Automated)*
 - **AC-NM25** RC-F1 (Frame Degraded/Offline) applies a hidden `+HostileTiltDelta` weight shift to Event outcomes; no UI indicator beyond existing Frame damage readout. *(Automated)*
+- **AC-NM25a** `HostileTiltDelta` invariant — the 4-axis vector `{Treasure, Ambush, Windfall, Convert}` sums to exactly 0 across all Event beacons (canonical: `-5 + 15 + -10 + 0 = 0`). Verified at asset validation on registry load: any authored delta whose per-axis sum ≠ 0 fails validation. Preserves total probability mass on Event outcomes — RC-F1 is a re-weighting, not a probability injection. *(Automated — registry validator)*
 - **AC-NM26** When a subsystem transitions Online→Offline mid-run, all affected Route Constraint flags update before the next commit prompt. *(Automated)*
 - **AC-NM27** When multiple constraints apply simultaneously, surcharges and overlays combine additively without overriding each other. *(Automated)*
 
@@ -1071,12 +1236,16 @@ Each criterion is independently testable. Verification method in parentheses: **
 - **AC-NM31** EC-NM9 A commit interrupted by a save/restore completes exactly once on resume — no double-apply of fuel cost or counter increment. *(Automated)*
 - **AC-NM32** EC-NM11 Reaching Haven immediately ends the run as success regardless of storm position or remaining fuel. *(Automated)*
 - **AC-NM33** EC-NM12 Saving mid-commit is blocked by `IsCommitInProgress`; attempt surfaces a "wait until node resolves" prompt. *(Automated + Manual)*
-- **AC-NM34** All 13 edge cases from Section E have at least one corresponding automated test. *(Automated coverage check)*
+- **AC-NM33a** E-2 Combat defeat: pipeline skips steps 10–11; the storm decrement from step 5 is retained in the run-summary (world-at-moment-of-defeat, not world-at-moment-of-commit). `RunEndReason = CombatDefeat` is published. If step 5's decrement triggered a mid-travel storm advance that caught the player, E-1 fires *before* combat begins and E-2 never triggers. *(Automated)*
+- **AC-NM33b** E-4 Graph-generation failure: after 100 retries with the seeded `System.Random`, generator falls back to the per-biome curated deterministic baseline graph and logs `GraphGenerationFailed(seed)` to `production/session-logs/`. Run proceeds; run replay stays reproducible because the fallback itself is deterministic. Trigger rate is monitored — >0.1% escalates as a constraint-calibration bug. *(Automated + telemetry sample)*
+- **AC-NM33c** E-8 Consumed-beacon reappearance: `#if DEBUG` assert throws on any attempted `Consumed → *` transition. In release, the transition is silently forced back to `Consumed`, `runIntegrityCompromised = true` is set on the run, and a `Severity.Critical` entry is logged. *(Automated)*
+- **AC-NM33d** E-9 Visual noise band overlap AND E-13 gate-funnel stranded: (a) beacon markers, cost labels, and state indicators always render above the cosmetic noise band (`z-index > noiseBand.z-index`) — no gameplay-Reachable beacon is ever visually occluded; (b) if all body beacons of a biome are Consumed but the strip-5 gate-funnel is still Reachable, the player commits normally; if RC-M1 blocks the required lateral, run ends via E-3 (`RunEndReason = Stranded`). *(Automated + Manual visual verification)*
+- **AC-NM34** Every edge case E-1 through E-13 in Section E has at least one corresponding acceptance criterion in this section (see AC-NM28–AC-NM33d). Coverage matrix: E-1→AC-NM29, E-2→AC-NM33a, E-3→AC-NM28, E-4→AC-NM33b, E-5→AC-NM33, E-6→(design-forbidden; no runtime AC), E-7→AC-NM30, E-8→AC-NM33c, E-9→AC-NM33d, E-10→AC-NM30, E-11→AC-NM32, E-12→AC-NM31, E-13→AC-NM33d. *(Automated coverage check — CI grep against this matrix)*
 
 ### J.6 Save/Load
 
 - **AC-NM35** `NodeMapDto` round-trips losslessly through the Save GDD serializer — every field equal after write→read. *(Automated)*
-- **AC-NM36** On load, current beacon, storm front, `CombatCommitCounter`, `RunSeed`, and beacon visit states all resume identically to their pre-save values. *(Automated)*
+- **AC-NM36** On load, current beacon, `StormFrontX`, `StormCounter`, `RunSeed`, `FuelState.Current`, and beacon visit states all resume identically to their pre-save values. `FuelState.Max` and `StormCounterStart` are live-derived on `FromDto` (V3 TD Risk 2) and match the current chassis / biome asset, not the pre-save asset if it has since been rebalanced. *(Automated)*
 - **AC-NM37** A save written in the v1.0 Node Map schema loads without crash after any additive DTO change; breaking changes require a documented migration. *(Automated + QA regression)*
 
 ### J.7 UI / Visual
@@ -1100,14 +1269,17 @@ Each criterion is independently testable. Verification method in parentheses: **
 - **AC-NM48** Graph generation + initial render completes inside the "Entering Wasteland" transition budget (<250ms). *(Automated perf)*
 - **AC-NM49** Save serialization of the full `NodeMapDto` completes in <5ms. *(Automated perf)*
 
-### J.9 Pillar Alignment
+### J.9 Pillar Alignment (V3)
 
-- **AC-NM50** Pillar 2 "Chassis Identity" — across 1000 seeded runs at mid-biome (beacon index 40–60% of map), Scout's average Reachable-beacon set size exceeds Truck's by **≥40%**, and Assault falls strictly between them. Verifies that the chassis meaningfully shapes the map picture rather than producing only superficial subgraph differences. *(Automated simulation harness + graph-diff)*
-- **AC-NM51** Pillar 3 "Read to Win" — before any commit, the player can see: current storm front, next-tick storm position, edge fuel cost including surcharges, and destination beacon type. *(Manual)*
-- **AC-NM52** Pillar 4 "Scarcity with Agency (three domains) — Fuel isolation from Combat" — Fuel is never earned from combat reward tables; Scrap and Energy systems never gate route choices. *(Automated — reward-table grep + static rule check)*
+- **AC-NM50** Pillar 2 "Chassis Identity" — across 1000 seeded runs at mid-biome (beacon index 40–60% of map), Scout's average Reachable-beacon set size exceeds Truck's by **≥40%**, and Assault falls strictly between them. Verifies that the chassis meaningfully shapes the map picture via tank size + fuel-drain (V3), rather than producing only superficial subgraph differences. *(Automated simulation harness + graph-diff)*
+- **AC-NM51** Pillar 3 "Read to Win" (V3) — before any commit, the player can see: current storm front position, `StormCounter` current value, `StormCounterStart` reference, edge fuel cost including surcharges, destination beacon type, and (on hover) the *previewed* storm counter drop for the hovered edge. *(Manual)*
+- **AC-NM52** Pillar 4 "Scarcity with Agency (three domains) — Fuel isolation from Combat" — Fuel is never modified inside the combat simulation. `CombatReward.Fuel` (ADR-0013 V3 amendment) is applied at pipeline step 10 (reward payload boundary), not inside the combat loop. *(Automated — reward-table trace + `#if DEBUG` assert)*
 - **AC-NM53** Pillar 5 "Route Reflects Vehicle State" — every subsystem Online→Offline transition produces at least one visible change to the route picture (surcharge, overlay, or blocked edge). *(Automated + Manual)*
 - **AC-NM54** Pillar 2 "Chassis Identity — Truck compensation contract (CD Condition 4)" — Combat and Elite beacon reward-table outputs for `ChassisId == Truck` yield at least **1.25×** the Scrap and Fuel expected-value of the same tables for `ChassisId == Scout`, measured across 1000 seeded beacon resolutions. Fails if Truck ever ships with equal or lesser reward-value per critical-path beacon. *(Automated reward-table simulation)*
-- **AC-NM55** Pillar 4 "Scarcity with Agency (three domains) — Scrap/Fuel data-path isolation" — no shared pool, field, or conversion function exists between the `CurrentScrap` and `CurrentFuel` runtime values. Merchant and Chopshop conversions route through explicit named verbs (`ConvertScrapToFuel(int)` / `ConvertFuelToScrap(int)`) with both sides logging the transaction, never through a shared wallet. *(Automated — static analysis + reference check)*
+- **AC-NM54b** Pillar 2 "Chassis Identity — fuel-verb economy contract (V3, 2026-07-02)" — every fuel-source verb outside Combat drops must produce a **net-positive** Fuel change for all three chassis when accounting for the fuel drain of the commit that reached the verb. Concretely: (a) **Rest** — `RestFuelRefund[chassis] ≥ ceil(BeaconBaseCost[Rest] × ChassisMultiplier[chassis])` for all three chassis (Rest is not a net-negative encounter for Truck); (b) **Convert (Event favorable outcome)** — `ConvertFuelYield[chassis] ≥ ceil(BeaconBaseCost[Combat] × ChassisMultiplier[chassis]) / 2` (a Convert yields at least half a Combat's fuel drain, per chassis); (c) **Chopshop scrap→fuel** — `ScrapPerFuelRate[chassis]` tuned so `20 scrap → ceil(BeaconBaseCost[Combat] × ChassisMultiplier[chassis]) / 2` fuel at minimum, per chassis. V3 defaults: `RestFuelRefund = {Scout: 2, Assault: 3, Truck: 5}`; `ConvertFuelYield = {Scout: 4, Assault: 5, Truck: 7}`; `ScrapPerFuelRate = {Scout: 4, Assault: 4, Truck: 6}`. Failing this AC means the chassis is economically Combat-locked in this biome and Pillar 5 (Route Reflects Vehicle State) breaks for that chassis. *(Automated simulation + registry validation; contract owned here, values authored in Node Encounter GDD per F.2 retrofit)*
+- **AC-NM55** Pillar 4 "Scarcity with Agency (three domains) — Scrap/Fuel data-path isolation" — no shared pool, field, or conversion function exists between the `RunState.Scrap` and `RunState.Fuel.Current` runtime values. Merchant and Chopshop conversions route through explicit named verbs (`ConvertScrapToFuel(int)` / `ConvertFuelToScrap(int)`) with both sides logging the transaction, never through a shared wallet. *(Automated — static analysis + reference check)*
+- **AC-NM56** V3 empty-rate target — across 1000 seeded biome-1 traversals with mixed route choice (target beacon distribution 30% Combat, 20% Merchant, 15% Rest, 15% Event, 10% Chopshop, 10% EliteCombat), Fuel-empty *moments* (fuel = 0 mid-biome) average **1–2 per biome** across all chassis. Safe-route (heavy Rest/Merchant) runs should trigger 0 empty moments; combat-heavy runs 1–2. Actual run-ends from `FuelStarvation` should be <5% (per OQ-NM1). *(Automated simulation)*
+- **AC-NM57** V3 storm-tick-rate target — across the same 1000 seeded biome-1 traversals, average storm ticks per biome falls between **1 and 3**, chassis-neutral. Zero-tick biomes possible on very short combat-light routes; 4+ ticks unusual and signals the counter tuning is too tight. *(Automated simulation)*
 
 ## Open Questions
 
@@ -1117,10 +1289,14 @@ These were surfaced during authoring and intentionally left unresolved for later
 
 - **OQ-NM1** — Should fuel starvation ever allow a pity refill? Current answer: NO (EC-NM1). Revisit if telemetry shows >5% of runs ending via `FuelStarvation` — the design intent is rare & earned, not punitive. *Owner: Node Map GDD (this doc). Trigger: post-beta telemetry.*
 - **OQ-NM2** — Is dual-RC stranded (Mobility Offline + fuel-below-min) acceptable as a "you should have played better" moment, or does it need a mitigation path? Current answer: acceptable. Revisit if >10% of EC-NM6 triggers come from early-run lockouts rather than late-run attrition. *Owner: Node Map GDD. Trigger: telemetry.*
-- **OQ-NM3** — If a chassis swap mechanic is ever added (currently out of scope), how does `ChassisStormCadence` behave mid-run? Does the counter reset? Does the storm pace jump? *Owner: forward. Trigger: chassis-swap feature proposal.*
+- **OQ-NM3** — (retired 2026-07-02) V1 `ChassisStormCadence` chassis-swap concern; V3 removes chassis-differentiated cadence so mid-run chassis swap only impacts `MaxFuel` + `ChassisMultiplier`. New sub-question: does `RunState.Fuel.Max` snapshot at StartRun or live-derive on chassis change? V3 TD Risk 2 recommends live-derive. *Owner: forward. Trigger: chassis-swap feature proposal.*
 - **OQ-NM4** — Does the Haven approach (final ~3 beacons) have a storm behavior change — slowdown, acceleration, eye-of-the-storm beat? Currently flat. Worth prototyping if the final stretch feels flat in playtest. *Owner: Node Map GDD. Trigger: playtest feedback.*
-- **OQ-NM5** — Fuel acquisition sources inside nodes — node rewards, chop-shop, specific Event outcomes — need to be legible enough to plan 2–3 nodes ahead without becoming deterministic. Balance pass lives in Scrap Economy + Loot & Reward GDDs but the Node Map enforces the legibility contract. *Owner: Scrap Economy GDD + Loot & Reward GDD. Trigger: those GDDs start.*
-- **OQ-NM6** — Fuel starting amount per chassis is currently a tuning knob; the initial calibration against average nodes-to-Haven is untested. *Owner: Balance. Trigger: first-playable vertical slice.*
+- **OQ-NM5** — Fuel acquisition sources inside nodes — node rewards, chop-shop, specific Event outcomes — need to be legible enough to plan 2–3 nodes ahead without becoming deterministic. Balance pass lives in Scrap Economy + Loot & Reward GDDs but the Node Map enforces the legibility contract. V3 addition: `CombatReward.Fuel` yield table (owned by Loot & Reward per ADR-0013) directly shapes empty-moment rate — target 1–2 per biome. *Owner: Scrap Economy GDD + Loot & Reward GDD. Trigger: those GDDs start.*
+- **OQ-NM6** — Fuel starting amount per chassis is currently a tuning knob; the initial calibration against average nodes-to-Haven is V3-locked at `MaxFuel` (Scout 35 / Assault 50 / Truck 75) but untested in playtest. *Owner: Balance. Trigger: first-playable vertical slice.*
+- **OQ-NM7** (V3) — `EngineOfflineSurcharge` percentage rescale. V1 flat `+1` under V3 base costs (Combat 8, Elite 12) is 8–12% surcharge — probably fine but arguably too weak; percentage-based (~15% of base cost) is cleaner. *Owner: Node Map GDD. Trigger: first-playable telemetry showing Engine-offline commit rate + starvation correlation.*
+- **OQ-NM8** (V3) — Fuel-empty mid-biome failsafe: should a once-per-biome scripted refill fire "if the player has bricked the run and there are no fuel-source beacons Reachable"? Current answer: NO (ship V3 without failsafe; playtest decides). Revisit if `FuelStarvation` run-ends exceed OQ-NM1's 5% threshold AND >50% of them are attributable to unlucky beacon distributions rather than player choice. *Owner: Node Map GDD. Trigger: playtest telemetry.*
+- **OQ-NM9** (V3) — Biome ramp: `StormCounterStart` biome-specific tuning (biome 2 → ~28, biome 3 → ~25?). V3 lock ships biome 1 at 30 and defers biome 2 + 3 tuning to biome-specific slice work per ADR-0015. *Owner: Balance + level-designer. Trigger: biome 2 slice start.*
+- **OQ-NM10** (V3) — Truck value-compensation floor: AC-NM54 sets Truck reward uplift at 1.25×. Under V3 base costs, Truck's Combat drain is 12 fuel vs Scout's 6 — a 2× ratio, not 1.6× as under V1 (Truck 1.3 vs Scout 0.8 = 1.625×). Does the compensation floor need to lift with V3? Provisional answer: no — the 1.25× is *reward per Combat*, not per fuel; Truck already commits to fewer Combats per tank so the per-tank uplift is higher. Confirm with playtest. *Owner: Loot & Reward GDD. Trigger: Truck playtest feedback.*
 
 ### Forward Dependencies (carried to downstream GDDs)
 
@@ -1130,6 +1306,6 @@ These were surfaced during authoring and intentionally left unresolved for later
 
 ### Retrofits Flagged (from Section F Dependencies)
 
-- **V&P GDD retrofit** — add `SpendFuel(int)` to `IVehicleMutator`; expose `SubsystemStates` and `CurrentFuel` on `IVehicleView`; add `FuelBurnMultiplier` per chassis (Scout 0.8 / Assault 1.0 / Truck 1.3); document chassis-immutability contract mid-run.
+- **V&P GDD retrofit (V3)** — expose `SubsystemStates` and `ChassisId` on `IVehicleView`; add `ChassisMultiplier` per chassis (Scout **0.7** / Assault 1.0 / Truck **1.5**) and `MaxFuel` per chassis (Scout **35** / Assault 50 / Truck **75**); fuel state moves off `Vehicle` onto `RunState.Fuel : FuelState` POCO (V3 TD Q1) so `SpendFuel` is now `RunState.Fuel.Spend(baseCost, chassisMult)`; document chassis-immutability contract mid-run.
 - **Save & Persistence retrofit** — register `INodeMapSerializable`; document `IsCommitInProgress` pre-save check.
-- **Card Combat retrofit** — add non-interaction row: "Combat never touches `Fuel`, `StormFrontX`, or `CombatCommitCounter`."
+- **Card Combat retrofit (V3)** — add non-interaction row: "Combat never touches `RunState.Fuel`, `StormFrontX`, or `StormCounter`." Combat outcomes flow back through `CombatReward(int Scrap, CardOffer Choices, int Fuel = 0)` per ADR-0013 V3 amendment; `CombatReward.Fuel` is applied at pipeline step 10 (post-encounter) and clamped to `FuelState.Max`.
