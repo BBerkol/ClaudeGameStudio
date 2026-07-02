@@ -133,6 +133,31 @@ Unchanged contract from current `SubsystemBar` / `BuffTooltipWidget`:
 - Tooltip suppressed when ring is on a slot marked `IsStructural == false`
   AND the ring is hidden (DamagedOnly + full HP)
 
+## Slice 2a Non-Goals (TD-enforced)
+
+Slice 2a authors `SlotTargetRing.cs` + `SlotTargetRing.prefab` in isolation.
+The following surfaces are **explicitly not touched** in 2a per the TD
+verdict at `production/td-verdicts/2026-07-02-slot-target-ring-widget.md`:
+
+- No mount in `AuthorPlayerVehicle` / `AuthorEnemyArchetypePrefabs` /
+  `AuthorCombatPrefab` — vehicle authoring code emits zero `SlotTargetRing`
+  references
+- No changes to `BuildVehicleHudAnchors` / `SeedHudAnchor` / `SeedMainBarAnchor`
+- No changes to `VehicleBarStack.BuildPerSlotBars` — bind loop stays on
+  `ResolveBar` / `ResolveMarker`
+- No deletion of `SubsystemBar.cs` / `SubsystemMarker.cs` / their prefabs
+- `VehicleHudAnchors.ResolveRing(slotId)` may ship as a sibling to the
+  existing resolvers (dormant surface), but no runtime code calls it yet
+
+**Why:** if any vehicle prefab mounts a ring in 2a, the running game
+becomes bimodal (some slots ring, some bar), and Slice 2b stops being a
+single canonical cut per ADR-0011. The atomicity of 2b is enforced by
+2a's non-goals.
+
+**Grep gate at commit review:** any reference to `SlotTargetRing` outside
+`SlotTargetRing.cs`, `SlotTargetRing.prefab`, `SlotTargetRingTests.cs`,
+and `VehicleHudAnchors.ResolveRing` blocks the Slice 2a commit.
+
 ## Deferred to Later Slices
 
 Explicitly out of scope for Slice 2 canonical cut:
