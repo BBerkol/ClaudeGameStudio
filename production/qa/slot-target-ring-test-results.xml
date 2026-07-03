@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="13" result="Passed" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.0933634">
+  <test-suite type="TestSuite" id="1000" name="Wasteland Run" fullname="Wasteland Run" runstate="Runnable" testcasecount="701" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.093363" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1463" name="WastelandRun.CombatView.Tests.dll" fullname="C:/ClaudeCreations/GameStudio/Madmax Rougelike/Wasteland Run/Library/ScriptAssemblies/WastelandRun.CombatView.Tests.dll" runstate="Runnable" testcasecount="61" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.077976" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="15340" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1464" name="WastelandRun" fullname="WastelandRun" runstate="Runnable" testcasecount="61" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.077025" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1465" name="CombatView" fullname="WastelandRun.CombatView" runstate="Runnable" testcasecount="61" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.076405" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1466" name="Tests" fullname="WastelandRun.CombatView.Tests" runstate="Runnable" testcasecount="61" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.075736" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1443" name="SlotTargetRingTests" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.073742" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1444" name="Bind_SetsSlotIdAndCarriesDisplayNameTooltipKey" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Bind_SetsSlotIdAndCarriesDisplayNameTooltipKey" methodname="Bind_SetsSlotIdAndCarriesDisplayNameTooltipKey" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1284208720" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.035057" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1449" name="HideRule_AlwaysHidden_KeepsGameObjectDisabled" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.HideRule_AlwaysHidden_KeepsGameObjectDisabled" methodname="HideRule_AlwaysHidden_KeepsGameObjectDisabled" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="491867474" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.002207" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1450" name="HideRule_AlwaysVisible_KeepsGameObjectEnabled" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.HideRule_AlwaysVisible_KeepsGameObjectEnabled" methodname="HideRule_AlwaysVisible_KeepsGameObjectEnabled" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="212705873" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001642" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1451" name="HideRule_HideOnDestroyed_HidesWhenDead" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.HideRule_HideOnDestroyed_HidesWhenDead" methodname="HideRule_HideOnDestroyed_HidesWhenDead" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1675424175" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001353" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1452" name="HideRule_HideOnFullOrDestroyed_HidesFullAndDead_ShowsDamaged" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.HideRule_HideOnFullOrDestroyed_HidesFullAndDead_ShowsDamaged" methodname="HideRule_HideOnFullOrDestroyed_HidesFullAndDead_ShowsDamaged" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="2132995964" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001287" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1453" name="HideRule_HideOnFullUnlessAttackActive_HidesFullOffAttack" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.HideRule_HideOnFullUnlessAttackActive_HidesFullOffAttack" methodname="HideRule_HideOnFullUnlessAttackActive_HidesFullOffAttack" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1120026677" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001274" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1448" name="Refresh_DestroyedSlot_PaintsBgAndDimsOutline" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Refresh_DestroyedSlot_PaintsBgAndDimsOutline" methodname="Refresh_DestroyedSlot_PaintsBgAndDimsOutline" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1977305609" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.003752" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1456" name="Refresh_PaletteNull_UsesInlineFallbackBandColors" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Refresh_PaletteNull_UsesInlineFallbackBandColors" methodname="Refresh_PaletteNull_UsesInlineFallbackBandColors" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="953021991" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001691" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1445" name="Refresh_RatioAbove080_UsesGreenBand" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Refresh_RatioAbove080_UsesGreenBand" methodname="Refresh_RatioAbove080_UsesGreenBand" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1897650919" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001078" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1447" name="Refresh_RatioAtOrBelow040_UsesRedBand" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Refresh_RatioAtOrBelow040_UsesRedBand" methodname="Refresh_RatioAtOrBelow040_UsesRedBand" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="170187683" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001080" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1446" name="Refresh_RatioInMiddle_UsesYellowBand" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.Refresh_RatioInMiddle_UsesYellowBand" methodname="Refresh_RatioInMiddle_UsesYellowBand" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1589244190" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.004825" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1454" name="SetTargetHover_TogglesTargetHoverOutlineImage" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.SetTargetHover_TogglesTargetHoverOutlineImage" methodname="SetTargetHover_TogglesTargetHoverOutlineImage" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1907756879" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001631" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+]]></output>
+              </test-case>
+              <test-case id="1455" name="SetTargetHover_UsesFallbackColorWhenPaletteNull" fullname="WastelandRun.CombatView.Tests.SlotTargetRingTests.SetTargetHover_UsesFallbackColorWhenPaletteNull" methodname="SetTargetHover_UsesFallbackColorWhenPaletteNull" classname="WastelandRun.CombatView.Tests.SlotTargetRingTests" runstate="Runnable" seed="1912783672" result="Passed" start-time="2026-07-02 20:22:32Z" end-time="2026-07-02 20:22:32Z" duration="0.001668" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+SendMessage cannot be called during Awake, CheckConsistency, or OnValidate (SlotTargetRing_test: OnRectTransformDimensionsChange)
+Saving results to: C:/Users/berta/AppData/LocalLow/DefaultCompany/Wasteland Run\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
