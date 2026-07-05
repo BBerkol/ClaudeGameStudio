@@ -10,7 +10,7 @@ Accepted (2026-06-15)
 
 ## Last Verified
 
-2026-06-21 (Block 2 amendment — strip-grammar dropped; FTL-style descriptor preserved; Block 1 generator landed Unity `ce3cc5d`)
+2026-07-05 (Slice B amendment — 4 fuel/storm fields extended on `BiomeDistributionSO` per pattern; 2026-06-21 Block 2 amendment prior)
 
 ## Decision Makers
 
@@ -424,3 +424,74 @@ be inlined as code constants if needed. Generator interface stays the same.
 - **Slice 6 capture** — `production/polish-captures/2026-06-15-slice-6-runflow.md`
   (first concrete application).
 - **Node Map GDD** — `design/gdd/node-map.md` C1.1 (canonical graph shape).
+
+---
+
+## Amendment 2026-07-05 — Fuel/Storm cost-table extension (Slice B of Fuel-as-Clock)
+
+**Change:** `BiomeDistributionSO` extended with 4 SerializeField-backed fields
+that carry the fuel-as-clock economy per biome. Ships alongside re-serialized
+`Biome1Distribution.asset` with V3 LOCKED SHAPE values baked. This is the
+second application of the ADR-0015 pattern (first was Slice 6 beacon-type
+narrowing) and its first use for a *cost table* rather than a spawn-weight
+table.
+
+**Fields added:**
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `_beaconFuelCosts` | `int[]` (enum-parallel to `BeaconType`, length 8) | `[0, 8, 12, 4, 4, 5, 3, 0]` (Biome 1 V3 LOCKED SHAPE) | Chassis-neutral base cost per beacon — storm-counter decrement + tank-drain input. |
+| `_stormCounterStart` | `int` | `30` | Biome's storm counter start value (also used by `FuelState.ResetStormOnHaven`). |
+| `_havenFuelRefillPercent` | `float` | `0.65` | Haven partial refill percentage (V3 default preserves scarcity pillar). |
+| `_biomeStartingFuelModifier` | `float` | `1.0` | Multiplier on chassis `TankCapacity` at `StartRun` — biome-scoped tank scaling. |
+
+**Why this is the ADR-0015 canonical shape (not a bimodal/adapter smell):**
+
+1. **Enum-parallel `int[]`, not `List<WeightedFuelCost>`-style keyed struct.**
+   The full `BeaconType` enum (8 values) stays real in code; the SO ships
+   full-length costs including 0-entries for beacons that biome doesn't
+   emit (`Start=0`, `Haven=0`). Storing values for un-emitted beacon types
+   is content-shaping, not dead code — same pattern as Biome 1 keeping a
+   zero entry for `Rest` in `_nonTerminalBeaconTypes` when it later
+   ships. Closes silent-duplicates + missing-entry semantics that a keyed
+   struct would introduce.
+
+2. **`BiomeStartingFuelModifier` lands in Slice B, not deferred.** The
+   2026-07-04 TD verdict Q4 corrected an earlier "defer to biome 2"
+   position: `FuelState.Max` is stamped from `chassis.TankCapacity ×
+   biome.StartingFuelModifier` at `StartRun` per TD Q2 snapshot rule, so
+   the seam has to exist at construction time regardless of whether biome
+   1 uses `1.0`. Shipping it later as an additive would create a bimodal
+   snapshot rule across two slices (ADR-0011 #3). Ship the seam once, land
+   the value at `1.0` for Biome 1.
+
+3. **OnValidate guardrails match the pattern's authoring discipline.** The
+   validator resizes the `int[]` to enum length (silent-drift protection),
+   warns on `Combat=0` typo (highest-signal cost, most likely to be edited
+   accidentally), clamps negative costs to zero (`FuelState.Spend` rejects
+   negative base at runtime; catch the typo at authoring), and clamps
+   `_stormCounterStart` to >= 1 (`FuelState` ctor throws on non-positive).
+   The validator preserves designer intent when possible and warns loudly
+   when it can't.
+
+**Why NOT a static const class + per-biome override table:** The moment
+Biome 2 changes any single cost (say `Combat=8 → Combat=10` for the harder
+biome), the "constants + override" shape becomes the bimodal path — "look
+at the base const OR the override, depending on the biome." The pure
+per-biome table is one lookup path. The redundancy (Biome 1 and Biome 2
+both stating `Combat=8`) is cheap — 32 bytes per biome — and worth the
+clarity. This mirrors the original Slice 6 stance ("full enum stays real,
+table controls what generator emits") ported to costs.
+
+**Slice B is data-only surface.** No consumer wiring in this amendment;
+`RunState.Fuel` construction from these SO values, `RunSession.Advance`
+fuel-spend hookup, save DTO, and the map ticker seam all land in Slices C
+and D per the sequencing in
+`production/td-verdicts/2026-07-04-v3-fuel-as-clock-architecture.md`.
+
+**References:**
+
+- TD verdict: `production/td-verdicts/2026-07-04-v3-fuel-as-clock-architecture.md` §Q4 + §"Slice B".
+- Execution pointer verdict: `production/td-verdicts/2026-07-05-slice-b-biome-distribution-fuel-cost-fields.md`.
+- Test coverage: `Assets/Tests/EditMode/Run/BiomeDistributionSO_FuelCosts_Test.cs`.
+- Consumer of `FuelState` invariants: `Assets/Scripts/Run/FuelState.cs` (Slice A, Unity `473c296`).
