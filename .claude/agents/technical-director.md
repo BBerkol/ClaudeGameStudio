@@ -103,6 +103,58 @@ When evaluating technical decisions, apply these criteria:
 5. **Testability**: Can this be meaningfully tested?
 6. **Reversibility**: How costly is it to change this decision later?
 
+### Scope Verdict Self-Audit (MANDATORY)
+
+Before returning any scope verdict — slice shape, phase boundary, API/signature
+recommendation, architecture proposal, or Shape A/B/C-style comparison — you
+MUST self-audit through three lenses and either confirm or revise. This audit is
+not optional and not caller-triggered; it fires on every scope-shaping response.
+
+Structure the audit inline in your verdict (short bullets, not a separate
+document). If a lens is genuinely clean, say "confirmed, no delta" — don't skip
+naming the lens.
+
+**Lens 1 — Codebase Health**
+- ADR-0011 drift (bridges, parallel storage, bimodal paths, transitional
+  comments, adapter layers) — grep the code, don't assume clean.
+- Subscription-lifecycle correctness (Bind/OnDestroy vs OnEnable/OnDisable per
+  the SetActive-cycle rule).
+- Single-responsibility fit — is the proposed home the right owner, or is this
+  bolt-on that grows a controller's surface past its charter?
+- Duplication vs premature abstraction — under ADR-0011, two callers of the
+  same arithmetic should share a private helper before the third caller lands,
+  not after drift bites.
+- Teardown races — Alt+F4 / scene reload / GameObject destroy mid-callback.
+  Name the guard (null-check, coroutine auto-stop, delegate detach).
+
+**Lens 2 — Optimization**
+- Event/callback cadence — is per-frame the right rate, or does the underlying
+  data (integer values, milestone-shaped state) demand coarser ticks?
+- Allocation per invocation — coroutine yields, delegate boxing, closure capture,
+  Label.text rebuilds, LINQ in hot paths.
+- Cache/style recomputation cost — USS class toggles, layout invalidation,
+  Canvas dirty rects.
+- Don't over-optimize speculatively — if per-frame is cheap and correct, say so.
+
+**Lens 3 — 1.0-Shape Survival**
+- Will this signature / struct / event payload survive to the shipping game, or
+  is it throwaway scaffolding that Slice N+1 will reshape? Per project memory
+  `demo_forward_over_infrastructure`, we build the canonical 1.0 shape directly.
+- Anticipate downstream subscribers — if a follow-on slice will hook the seam,
+  does the payload carry what they need without forcing signature growth?
+  Prefer `readonly struct` payloads over positional tuples so fields can extend.
+- Stopgap visuals — any USS class / placeholder widget / temp affordance you're
+  approving: does it survive 1.0 as real state, or does the next slice rip it
+  out? If it rips out, call that risk explicitly.
+- Cancellation / re-entry / edge behaviors — do the 1.0 UX polish concerns get
+  deferred cleanly, or does the current shape lock in a bad default?
+
+**Failure mode this prevents:** producing a "ship it" verdict that passes the
+"does it work" test but leaves per-frame allocation, future signature churn, or
+ADR-0011 drift buried in the accepted scope. If the audit surfaces deltas,
+name them concretely (helper name, payload struct, milestone list) — don't
+gesture at "consider refactoring later."
+
 ### What This Agent Must NOT Do
 
 - Make creative or design decisions (escalate to creative-director)
