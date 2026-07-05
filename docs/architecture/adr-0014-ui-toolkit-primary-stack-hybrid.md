@@ -242,7 +242,7 @@ public sealed class MapViewController : MonoBehaviour
 |-------|-------|-------|------|
 | **P1** | USS design tokens + base controls (button, label, panel, scrollable list). `PanelSettings` asset authored. `WastelandRun.UI` asmdef created. | Before Slice 6 code | LOW — additive |
 | **P2** | Slice 6 node-map view + Run Complete view authored UI Toolkit native. No UGUI map ever exists. | Slice 6 | MEDIUM — first real UI Toolkit work, learning curve |
-| **P3** | Migrate `CardRewardPicker` + `CombatOutcomeOverlay` to UI Toolkit. Both are leaf surfaces with limited authored tuning. | M1 polish (post-Slice 6) | LOW–MEDIUM — capture-before-destroy required |
+| **P3** ✅ **LANDED 2026-06-23** | Migrated `CardRewardPicker` + `CombatOutcomeOverlay` to UI Toolkit. Prefabs: `Assets/Prefabs/CombatView/CardRewardPicker.prefab` (guid `934ce037e2b5b384897dd5f721d2fc48`), `Assets/Prefabs/CombatView/CombatOutcomeOverlay.prefab` (guid `c7cad5e5adbab7f499b7ede0226e60fc`). Controllers: `WastelandRun.UI.CardRewardPickerController`, `WastelandRun.UI.CombatOutcomeOverlayController`. Both wired via `CombatHud` SerializeFields. EditMode tests: `Assets/Tests/EditMode/UI/{CardRewardPickerController_Test,CombatOutcomeOverlayController_Test}.cs`. | M1 polish (post-Slice 6) | LOW–MEDIUM — capture-before-destroy honored |
 | **P4** | Migrate `Combat_HUD` (HP, armor, intent, energy, hand, deck/discard, hover) to UI Toolkit. Highest-risk migration; combat feel must not regress. | M1.5 dedicated migration slice | HIGH — exhaustive capture-before-destroy required; full playtest pass before merge |
 | **P5** | CI grep gate: forbid `Canvas` components in any prefab outside the `Popups` canvas subtree (and `Debug`, retired in P4). Pattern matches ADR-0010 Phase 5 + ADR-0013 salt-uniqueness gate precedent. | Same commit as P4 close | LOW |
 
@@ -378,8 +378,8 @@ regression vs the UGUI baseline.
 - [ ] Phase 2 lands: Slice 6 node-map view and Run Complete view
       authored UI Toolkit native, no UGUI fallback exists in the
       commit history for either surface.
-- [ ] Phase 3 lands: `CardRewardPicker` and `CombatOutcomeOverlay`
-      migrated, capture files in `production/polish-captures/` for both.
+- [x] Phase 3 lands: `CardRewardPicker` and `CombatOutcomeOverlay`
+      migrated (2026-06-23), capture files in `production/polish-captures/` for both.
 - [ ] Phase 4 lands: `Combat_HUD` migrated with exhaustive capture
       file; playtest pass confirms no combat-feel regression.
 - [ ] Phase 5 lands: CI grep gate forbids new `Canvas` components

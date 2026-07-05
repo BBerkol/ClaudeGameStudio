@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="7" result="Passed" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.0852739">
+  <test-suite type="TestSuite" id="1000" name="Wasteland Run" fullname="Wasteland Run" runstate="Runnable" testcasecount="711" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.085274" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1821" name="WastelandRun.UI.Tests.dll" fullname="C:/ClaudeCreations/GameStudio/Madmax Rougelike/Wasteland Run/Library/ScriptAssemblies/WastelandRun.UI.Tests.dll" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.068738" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="20024" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1822" name="WastelandRun" fullname="WastelandRun" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.068393" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1823" name="UI" fullname="WastelandRun.UI" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.068208" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1824" name="Tests" fullname="WastelandRun.UI.Tests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.067996" total="7" passed="7" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1812" name="CardRewardPickerController_Test" fullname="WastelandRun.UI.Tests.CardRewardPickerController_Test" classname="WastelandRun.UI.Tests.CardRewardPickerController_Test" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.031317" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1816" name="Bind_NewOutcome_OldOutcomeHasZeroSubscribers" fullname="WastelandRun.UI.Tests.CardRewardPickerController_Test.Bind_NewOutcome_OldOutcomeHasZeroSubscribers" methodname="Bind_NewOutcome_OldOutcomeHasZeroSubscribers" classname="WastelandRun.UI.Tests.CardRewardPickerController_Test" runstate="Runnable" seed="1263951993" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.018128" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="1815" name="Bind_TwiceSameOutcome_OnlyOneSubscriber" fullname="WastelandRun.UI.Tests.CardRewardPickerController_Test.Bind_TwiceSameOutcome_OnlyOneSubscriber" methodname="Bind_TwiceSameOutcome_OnlyOneSubscriber" classname="WastelandRun.UI.Tests.CardRewardPickerController_Test" runstate="Runnable" seed="592844577" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.000470" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="1814" name="OnDestroy_StripsOutcomeSubscription" fullname="WastelandRun.UI.Tests.CardRewardPickerController_Test.OnDestroy_StripsOutcomeSubscription" methodname="OnDestroy_StripsOutcomeSubscription" classname="WastelandRun.UI.Tests.CardRewardPickerController_Test" runstate="Runnable" seed="1326197180" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.000525" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="1813" name="OnDisable_DoesNotStripOutcomeSubscription" fullname="WastelandRun.UI.Tests.CardRewardPickerController_Test.OnDisable_DoesNotStripOutcomeSubscription" methodname="OnDisable_DoesNotStripOutcomeSubscription" classname="WastelandRun.UI.Tests.CardRewardPickerController_Test" runstate="Runnable" seed="450682994" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.000418" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1817" name="CombatOutcomeOverlayController_Test" fullname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test" classname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.035707" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1820" name="Defeat_SubtitleUnchanged_ScrapIgnored" fullname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test.Defeat_SubtitleUnchanged_ScrapIgnored" methodname="Defeat_SubtitleUnchanged_ScrapIgnored" classname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test" runstate="Runnable" seed="1265015326" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.033798" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="1818" name="Victory_PositiveScrap_RendersFormattedScrapLine" fullname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test.Victory_PositiveScrap_RendersFormattedScrapLine" methodname="Victory_PositiveScrap_RendersFormattedScrapLine" classname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test" runstate="Runnable" seed="346826216" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.000570" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+]]></output>
+              </test-case>
+              <test-case id="1819" name="Victory_ZeroScrap_RendersZeroLineCoherently" fullname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test.Victory_ZeroScrap_RendersZeroLineCoherently" methodname="Victory_ZeroScrap_RendersZeroLineCoherently" classname="WastelandRun.UI.Tests.CombatOutcomeOverlayController_Test" runstate="Runnable" seed="1637872730" result="Passed" start-time="2026-07-04 18:43:45Z" end-time="2026-07-04 18:43:45Z" duration="0.000337" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[
+IgnoreFailingMessages:true
+Saving results to: C:/Users/berta/AppData/LocalLow/DefaultCompany/Wasteland Run\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>
