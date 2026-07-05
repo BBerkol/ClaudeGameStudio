@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-06-02)
+Accepted (2026-06-02); Amended (2026-07-05)
 
 ## Date
 
@@ -10,7 +10,7 @@ Accepted (2026-06-02)
 
 ## Last Verified
 
-2026-06-02
+2026-07-05
 
 ## Decision Makers
 
@@ -269,3 +269,108 @@ for enemies in this slice.**
 - **Depends on** ADR-0008 (Addressables `AssetReferenceT<Sprite>` for part art).
 - **Constrained by** ADR-0011 (no bridges — no parallel `_armorHp` literal
   surviving alongside sum-of-parts).
+
+---
+
+## Amendment (2026-07-05)
+
+Phase 2.5 parts progression axis + ADR-0017 (multi-chassis + Bodywork +
+chassis-agnostic parts) forces three clarifications to this ADR. The
+original decisions (Sections 1–6) stand as historical framing; the
+clarifications below govern from 2026-07-05 forward.
+
+### Amendment A1 — Universal sum-of-parts rule reaffirmed with Bodywork
+
+ADR-0017 extends `SlotKind` with `Bodywork` (visual-only decorative slots,
+cosmetic-only in combat, contribute to sum-of-parts armor as a static
+bonus). This ADR's Section 1 rule — "`ArmorContribution` is permitted on
+**every** `SlotKind`" — extends to Bodywork by construction. `armor_0`
+stays the whitelisted aggregator that ignores its own `ArmorContribution`
+per Section 3.
+
+The universal `Vehicle.RecomputeArmorPool` iteration is unchanged; it
+already covers all `SlotKind` values without filtering. Bodywork slots
+enter the sum at build time and stay non-Offline throughout combat
+(they do not state-transition per ADR-0017), so Bodywork's contribution
+is effectively a static bonus.
+
+### Amendment A2 — `InstallPart(armorContribution = 0)` default parameter REMOVED
+
+Section 2 of this ADR framed the default parameter as "a first-class
+permanent API — not a primary/compat pair" and endorsed the 2-arg
+shorthand for zero-contribution slots. That framing was correct when
+`ArmorContribution` was near-zero on most slots (M1 shape per
+`feedback_unified_boss_armor_pool`, where only Frame carried armor).
+
+Under the parts progression axis, non-zero `ArmorContribution` becomes
+common across all slot kinds (weapons, engines, mobility, hull, bodywork
+all potentially contribute). The default parameter now silently drops
+contributions if a call site is written without parts-axis awareness —
+this is the exact "GDD verb signature not load-bearing" failure mode
+(`feedback_gdd_verb_signature_not_load_bearing`).
+
+**New signature:**
+
+```csharp
+// Player path — asset-authored parts (unchanged)
+public void InstallPart(string slotId, PartDefinitionSO partDef);
+
+// Code-author path — enemies, tests, editor tools. armorContribution now REQUIRED.
+public void InstallPart(string slotId, int maxHp, int armorContribution);
+```
+
+Every existing 2-arg call site must migrate to 3-arg with explicit
+`armorContribution` value. The compiler is the migration gate — a 2-arg
+call fails to compile, forcing coverage. Migration surface: ~14 semantic
+calls in enemy archetypes (`Dredge`, `IronShepherd`, `DuneSkimmer`) +
+~170 mechanical calls in EditMode tests + `RunSceneHost` and
+`VehicleDefinitionSO` bootstrap paths. Semantically-zero call sites
+append `, 0` — no behavior change, just explicit-at-source.
+
+`TestVehicleFactory` (`Assets/Tests/EditMode/Combat/Helpers/TestVehicleFactory.cs`)
+is the natural funnel for test-side migration; updating it covers many
+test suites indirectly.
+
+### Amendment A3 — Enemy narrowing clarified as ADR-0015 authoring convention
+
+Section 5 (Enemy archetypes) is clarified as an **authoring convention**
+under ADR-0015 (configuration narrowing), NOT a runtime code branch.
+Enemies use the int overload with `armorContribution = 0` on most slots
+and non-zero only where design intent calls for it (`hull_0` for
+standard enemies, `exposable_N` for bosses like Dredge). This is a
+data-side authoring convention — the runtime code path is universal
+(`Vehicle.RecomputeArmorPool` iterates all non-Offline slots, sums their
+`ArmorContribution`, writes to `armor_0.MaxHp`).
+
+A future reader must NOT infer "enemies always author 0 on non-hull
+slots" as a code-side invariant and try to enforce it in
+`Vehicle.InstallPart` (that would be an ADR-0011 bimodal path
+violation). The rule stays in the archetype authoring only.
+
+### Amendment A4 — Card `PlayableAt` mapping is downstream
+
+ADR-0017 introduces `Card.PlayableAt : LanePosition?` field (reuses the
+existing `LanePosition` enum). Front-mounted weapon → `PlayableAt =
+LanePosition.Behind`; Back-mounted → `PlayableAt = LanePosition.Ahead`;
+Universal → `PlayableAt = null`. This is architecturally downstream of
+`PartDefinitionSO.MountDirection` (introduced by ADR-0017) and does
+**not** modify ADR-0012's armor scope. Noted here for cross-reference
+only.
+
+### Timing and coordination
+
+This amendment lands in the **Phase 2.5A atomic commit** alongside
+ADR-0017 flipping Proposed → Accepted. Both ADR files' Status headers
+update in the same commit. Rollback of the amendment requires reverting
+the entire atomic commit — the default-param removal + ADR-0017 shape
+land or fall together.
+
+### Related
+
+- ADR-0017 (Multi-Chassis Architecture Standard — Proposed 2026-07-05,
+  Accepted alongside this amendment).
+- Capture: `production/polish-captures/2026-07-05-adr-0012-amendment.md`.
+- Memory `feedback_gdd_verb_signature_not_load_bearing.md` — the failure
+  mode this amendment forecloses.
+- Memory `feedback_unified_boss_armor_pool.md` — the M1 shape the
+  original Section 2 default was correct for; superseded by parts-axis.
