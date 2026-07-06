@@ -84,3 +84,9 @@ Full V3 architecture rationale: `production/td-verdicts/2026-07-04-v3-fuel-as-cl
 ## Estimated effort
 
 ~1 session (arithmetic changes are small; animation seam is a 3s coroutine).
+
+---
+
+**Amendment 2026-07-06:** Slice E extended tick cadence from 3 discrete
+milestones to per-frame InFlight — see
+`production/td-verdicts/2026-07-06-travel-tick-surface.md`.
