@@ -231,7 +231,20 @@ check_verdict_dir() {
     files=$(find "$dir" -maxdepth 1 -type f -name "${TODAY}-*.md" 2>/dev/null)
     [ -z "$files" ] && return 1
     local file
-    for file in $files; do
+    # while-read, NOT `for file in $files`. The unquoted for-loop word-splits
+    # on spaces, and this project's framework root is ".../Madmax Roguelike" —
+    # so every verdict path shattered into two non-existent fragments, every
+    # grep failed, and the hook reported "no verdict references this file" for
+    # verdicts that plainly did.
+    #
+    # Identical to the defect fixed in capture-before-destroy.sh earlier on
+    # 2026-08-27, and latent for the same reason: harmless while the paths were
+    # cwd-relative (and therefore space-free), exposed the moment HOOK_ROOT made
+    # them absolute. Found when this hook falsely blocked an edit that had a
+    # qualifying capture sitting right there — the sibling hook was fixed and
+    # this one was never checked.
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
         local has_path=false
         local has_td=false
         if grep -qF "$PATH_BASENAME" "$file" 2>/dev/null; then
@@ -243,7 +256,9 @@ check_verdict_dir() {
         if [ "$has_path" = "true" ] && [ "$has_td" = "true" ]; then
             return 0
         fi
-    done
+    # Herestring, not a pipe: a pipe runs the loop in a subshell and `return 0`
+    # would not propagate out of the function.
+    done <<< "$files"
     return 1
 }
 
