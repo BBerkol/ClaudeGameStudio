@@ -103,8 +103,25 @@ if command -v jq >/dev/null 2>&1; then
 elif command -v node >/dev/null 2>&1; then
     parse_with_node
 else
-    echo "⚠ capture-before-destroy: no jq or node available; hook disabled" >&2
-    exit 0
+    # FAIL CLOSED. This guard protects irreversible loss of authored work —
+    # prefabs, scenes, designer-tuned SOs, accepted ADRs. The asymmetry is
+    # decisive: a false block costs a minute of your time, a bypassed one costs
+    # authored content that may not be recoverable.
+    #
+    # Was `exit 0` (fail-open) until 2026-08-27. That is the same silent-skip
+    # shape that let validate-commit.sh sit dead for the project's entire
+    # history — a guard that disables itself on a dependency hiccup and reports
+    # success is indistinguishable from a guard that works.
+    #
+    # Note the split, which is deliberate: the QUALITY hooks (validate-commit,
+    # validate-push, validate-assets) fail LOUD-OPEN instead, because blocking
+    # every commit over a PATH hiccup halts the project and a hook that halts
+    # everything gets deleted rather than fixed. Destruction guards block;
+    # quality guards warn.
+    echo "🛑 BLOCKED: capture-before-destroy cannot parse hook input — neither jq nor node is available." >&2
+    echo "   This hook guards destructive edits to authored content, so it fails CLOSED." >&2
+    echo "   Install node (or jq), or edit non-protected paths until it is restored." >&2
+    exit 2
 fi
 
 # Defaults if parsing returned nothing
@@ -199,7 +216,18 @@ esac
 
 # ----- CAPTURE FILE CHECK -----
 TODAY=$(date +%Y-%m-%d)
-CAPTURE_DIR="production/polish-captures"
+# Resolve relative to THIS HOOK, not to cwd. The hook lives at
+# <framework>/.claude/hooks/, so the framework root is two levels up.
+#
+# Was a bare relative path until 2026-08-27. Hooks run with the SESSION's cwd,
+# and this project's Unity code lives in a SEPARATE repo — so any edit issued
+# while cwd was the Unity project could not find production/polish-captures/
+# and blocked with "No capture directory" even when a valid capture existed
+# for that day. A hook that blocks legitimate work trains people to bypass it,
+# which is worse than one that never fires. It only behaved today because the
+# session cwd happened to be the framework repo.
+HOOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+CAPTURE_DIR="${HOOK_ROOT}/production/polish-captures"
 PATH_BASENAME=$(basename "$NORM_PATH")
 
 if [ ! -d "$CAPTURE_DIR" ]; then
@@ -215,7 +243,16 @@ else
         # At least one today file exists. Check each for path reference + TD review section.
         MATCH_FOUND=false
         FAILED_FILES=""
-        for cap in $TODAY_FILES; do
+        # while-read, NOT `for cap in $TODAY_FILES`. The unquoted for-loop
+        # word-splits on spaces, and this project's framework root is
+        # "…/Madmax Roguelike" — so every capture path shattered into two
+        # non-existent fragments, every grep failed, and the hook reported
+        # "no capture references this file" for captures that plainly did.
+        # Latent until CAPTURE_DIR became absolute (2026-08-27); the relative
+        # form happened to produce space-free paths. Any project whose path
+        # contains a space would have hit it immediately.
+        while IFS= read -r cap; do
+            [ -z "$cap" ] && continue
             HAS_PATH=false
             HAS_TD=false
             if grep -qF "$PATH_BASENAME" "$cap" 2>/dev/null; then
@@ -233,7 +270,9 @@ else
                 [ "$HAS_TD" = "false" ]   && MISSING="$MISSING no-td-review"
                 FAILED_FILES="$FAILED_FILES\n     $(basename "$cap") (missing:$MISSING)"
             fi
-        done
+        # Herestring, not a pipe: a pipe would run the loop in a subshell and
+        # MATCH_FOUND would not survive back to this scope.
+        done <<< "$TODAY_FILES"
         if [ "$MATCH_FOUND" = "true" ]; then
             BLOCK=false
         else

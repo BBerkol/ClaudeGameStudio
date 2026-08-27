@@ -21,6 +21,17 @@ fi
 FILE_PATH=$(echo "$FILE_PATH" | sed 's|\\|/|g')
 
 # Only act on files inside .claude/skills/
+# Normalize Windows separators before matching. Claude Code passes native
+# paths, so on Windows file_path arrives as
+# "C:\ClaudeCreations\...\.claude\skills\help\SKILL.md" — which never matched
+# the forward-slash pattern below, so this hook silently skipped EVERY skill
+# edit on this machine (verified 2026-08-27). Exit 0 with no output is
+# indistinguishable from "checked and fine," which is what hid it.
+# tr, then squeeze: the grep fallback returns the JSON-ESCAPED path, so each
+# separator arrives as "\\" and becomes "//" after translation — which the
+# single-slash pattern below still fails to match. tr -s collapses the runs.
+FILE_PATH=$(echo "$FILE_PATH" | tr '\\' '/' | tr -s '/')
+
 if ! echo "$FILE_PATH" | grep -qE '(^|/)\.claude/skills/'; then
     exit 0
 fi

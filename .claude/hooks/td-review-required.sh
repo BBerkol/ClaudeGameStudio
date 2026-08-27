@@ -76,8 +76,13 @@ if command -v jq >/dev/null 2>&1; then
 elif command -v node >/dev/null 2>&1; then
     parse_with_node
 else
-    echo "⚠ td-review-required: no jq or node available; hook disabled" >&2
-    exit 0
+    # FAIL CLOSED — same reasoning as capture-before-destroy.sh (2026-08-27).
+    # This gate enforces the TD-review protocol on system-shaping changes; a
+    # silently disabled gate means changes land unreviewed and nobody knows.
+    echo "🛑 BLOCKED: td-review-required cannot parse hook input — neither jq nor node is available." >&2
+    echo "   This hook gates system-shaping changes on a same-day TD verdict, so it fails CLOSED." >&2
+    echo "   Install node (or jq) to restore it." >&2
+    exit 2
 fi
 
 # Only act on Edit / Write / MultiEdit
@@ -242,8 +247,14 @@ check_verdict_dir() {
     return 1
 }
 
-if check_verdict_dir "production/td-verdicts" \
-   || check_verdict_dir "production/polish-captures"; then
+# Absolute paths, resolved from this hook's own location (2026-08-27 — same
+# cwd-dependency fix as capture-before-destroy.sh). Cwd-relative lookups here
+# fail to find an EXISTING verdict whenever the session cwd is the Unity repo,
+# producing a false BLOCK on work that followed the protocol correctly.
+HOOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+
+if check_verdict_dir "${HOOK_ROOT}/production/td-verdicts" \
+   || check_verdict_dir "${HOOK_ROOT}/production/polish-captures"; then
     exit 0
 fi
 

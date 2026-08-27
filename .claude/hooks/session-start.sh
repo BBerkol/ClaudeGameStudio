@@ -55,7 +55,10 @@ if [ -d "src" ]; then
 fi
 
 # --- Active session state recovery ---
-STATE_FILE="production/session-state/active.md"
+# Absolute, resolved from this hook's own location (2026-08-27 cwd-dependency
+# sweep — see capture-before-destroy.sh for the full rationale).
+HOOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+STATE_FILE="${HOOK_ROOT}/production/session-state/active.md"
 if [ -f "$STATE_FILE" ]; then
     echo ""
     echo "=== ACTIVE SESSION STATE DETECTED ==="
@@ -72,7 +75,7 @@ if [ -f "$STATE_FILE" ]; then
 fi
 
 # --- Prefab drift sentinel preview ---
-DRIFT_FILE="production/session-state/prefab-drift-pending.json"
+DRIFT_FILE="${HOOK_ROOT}/production/session-state/prefab-drift-pending.json"
 if [ -f "$DRIFT_FILE" ]; then
     echo ""
     echo "=== PREFAB DRIFT PENDING ==="

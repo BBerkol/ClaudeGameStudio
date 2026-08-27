@@ -40,7 +40,13 @@
 set -u
 
 INPUT=$(cat)
-SENTINEL="production/session-state/prefab-drift-pending.json"
+# Absolute, resolved from this hook's own location — see the same fix in
+# capture-before-destroy.sh (2026-08-27). A cwd-relative sentinel path silently
+# reads as "no drift pending" whenever the session cwd is not the framework
+# repo, which disables the guard exactly when a Unity-side author run is most
+# likely to be happening.
+HOOK_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+SENTINEL="${HOOK_ROOT}/production/session-state/prefab-drift-pending.json"
 
 # Known vehicle / prefab names the bake protocol applies to. Add new ones here
 # as they're introduced. Case-insensitive match.

@@ -22,6 +22,23 @@ fi
 FILE_PATH=$(echo "$FILE_PATH" | sed 's|\\|/|g')
 
 # Only check files in assets/
+# Normalize Windows separators — same silent-skip fix as
+# validate-skill-change.sh (2026-08-27). A backslash path never matched the
+# forward-slash pattern, so every asset write bypassed this hook unnoticed.
+# FAIL LOUD-OPEN — quality guard. An empty FILE_PATH means the parser failed;
+# without this the pattern below simply never matches and the hook exits 0
+# looking exactly like a clean pass. See validate-commit.sh for the split
+# rationale (destruction guards fail closed, quality guards warn).
+if [ -z "$FILE_PATH" ]; then
+    echo "[validate-assets] PARSER FAILED — could not extract file_path from hook input." >&2
+    echo "                  Asset checks did NOT run for this write." >&2
+    exit 0
+fi
+
+# tr then squeeze — the grep fallback yields JSON-escaped "\\" separators,
+# which translate to "//" and would still miss the pattern below.
+FILE_PATH=$(echo "$FILE_PATH" | tr '\\' '/' | tr -s '/')
+
 if ! echo "$FILE_PATH" | grep -qE '(^|/)assets/'; then
     exit 0
 fi
