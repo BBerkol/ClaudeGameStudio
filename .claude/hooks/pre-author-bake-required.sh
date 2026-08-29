@@ -108,11 +108,35 @@ if [ -n "$PROMPT_LC" ]; then
     fi
 fi
 
+# Per-vehicle match pattern. Defaults to a plain word-boundary match on the
+# name, which is unambiguous for every entry except one.
+#
+# "Combat" is overridden. It is both a prefab name AND this project's single
+# most common domain word, so a bare \bcombat\b match fires on ordinary prose:
+# verified 2026-08-29 that "i am working on combat cards" re-flagged the
+# sentinel. Because the hook re-flags on every matching prompt, that made the
+# sentinel UNCLEARABLE during any combat work — deleting it just brought it
+# back on the next message. A reminder that fires on every single prompt stops
+# being attention and becomes wallpaper, which destroys the guard rather than
+# strengthening it. The liberal-matching rationale above still holds for the
+# other names; it fails only where the name collides with the domain.
+#
+# Real disclosures about this prefab name it explicitly ("I tuned the Combat
+# prefab", "I moved things in Combat.prefab"), so requiring a qualifier keeps
+# every true positive.
+vehicle_match_pattern() {
+    case "$1" in
+        combat) printf '%s' 'combat[ ._-]?(prefab|hud|scene|unity)' ;;
+        *)      printf '%s' "\\b$1\\b" ;;
+    esac
+}
+
 # Match vehicle names in the prompt (case-insensitive)
 MATCHED_VEHICLES=()
 for v in "${VEHICLES[@]}"; do
     v_lc=$(echo "$v" | tr '[:upper:]' '[:lower:]')
-    if echo "$PROMPT_LC" | grep -qE "\b${v_lc}\b" 2>/dev/null; then
+    v_pat=$(vehicle_match_pattern "$v_lc")
+    if echo "$PROMPT_LC" | grep -qE "$v_pat" 2>/dev/null; then
         MATCHED_VEHICLES+=("$v")
     fi
 done
