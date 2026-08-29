@@ -170,6 +170,31 @@ The `IPartData` implementer grep was scoped to `Scripts/`, so five test-local
 compiler reports per-assembly). Swept repo-wide on the second pass.
 **Interface-member additions must grep `Tests/` too.**
 
+### 8c-bis. Review pass — run AFTER commit, which was the wrong order (`3d168bc`)
+
+`feedback_three_review_gates` puts adversarial diff review BEFORE commit. It was
+skipped on `f12148b` and run only when the user asked "do we need a pass?".
+**It found three things, one suite-breaking — so the gate earns its place.**
+
+1. **The "fresh instance" test was tautological.** It handed the fake part two
+   already-distinct `CardDefinition`s and asserted they were distinct. Blind to
+   the only real failure mode: `PartDefinitionSO` listing the SAME asset three
+   times and returning one shared object. **Shipped inside the very commit whose
+   message warns about vacuous fixtures** — writing the lesson down is not the
+   same as applying it. Replaced by a composition test (concatenates, does not
+   clone) plus `GrantedCards_MintFreshInstancesPerAccess` against the shipped
+   asset.
+2. **An attack-less deck is an unwinnable run and nothing checked for it.** The
+   first guard errored unconditionally and **failed 20 EditMode tests**, because
+   those run the BuildScout fallback where an attack-less deck is the expected
+   headless state. Severity is now split: wired asset + no attacks → LogError
+   (authoring drift); unwired → LogWarning (known fallback). An error on a
+   normal state trains people to ignore the channel.
+3. **Dead defensiveness** — `slot?.` in `ComposeStarting` cannot be false
+   (`GetSlotById` throws; the ctor instantiates every layout slot). ADR-0011.
+
+Final: **EditMode 1185 / 1183 / 0 / 2**, PlayMode 3/3.
+
 ### 8d. Deltas from the plan
 
 - `Milestone1Starter()` **kept its name**. Renaming would have churned 61 call
