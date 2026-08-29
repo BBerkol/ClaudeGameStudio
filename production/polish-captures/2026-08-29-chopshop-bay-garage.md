@@ -2,7 +2,8 @@
 
 **Date:** 2026-08-29
 **System:** New UI Toolkit garage modal in `ChopshopScreen`'s `#modal-container`
-**Status:** DESIGN AGREED — read-only slice pending approval to build
+**Status:** DESIGN SETTLED (see §2-SETTLED) — read-only slice pending approval
+to build. **Step 1 of §9 (`SourceSlotId`) is DONE + PUSHED**, Unity `3562c4e`.
 
 ---
 
@@ -34,7 +35,67 @@ Designed against the director's reference mockup
 architecture corrected** — the mockup is stat-driven and predates weapons
 granting cards (`f12148b`, same day).
 
-## 2. Shape
+## 2-SETTLED. Three surfaces (director, 2026-08-29, after a self-reversal)
+
+The director first said the garage should **replace** the Chopshop entry screen,
+then pushed back on themselves and reverted. The reverted position is recorded
+as final; the reasoning is worth keeping because it is a character argument, not
+a layout one.
+
+| Surface | What it is |
+|---|---|
+| **Chopshop entry** | UNCHANGED. Vendor, flavour text, resource strip, numbered choice rail. Stays a place with a person in it. |
+| **Garage** | **Fullscreen, opened from the rail.** The reference layout. **Repair moves here.** |
+| **Buy / Sell** | A window over the ENTRY screen — top third, parts storage still visible along the bottom. The vendor opens their stock. |
+
+**Why the reversal.** Replacing the entry screen would have traded away the
+vendor and the flavour text for a pure loadout UI. The whole reason equip is
+Chopshop-only is that it makes the Chopshop a PLACE rather than a menu —
+creative-director, 2026-08-29: *"Both are valid games. Only one of them has a
+garage."* Keeping the entry screen keeps that.
+
+### 2a. Repair MOVES into the garage — confirmed by director
+
+`1. Weld armor and parts back together.` leaves the entry rail. Repair becomes a
+garage control (bottom-right nav area alongside Back).
+
+**This is a change to the Chopshop's only working mechanic**, so it carries the
+§2c risk below. Later it gains a cost — possibly a dedicated repair currency
+("rods"). **Parked, not designed. Repair stays free until decided.**
+
+### 2b. This forces the picking-mode fix — no longer a judgement call
+
+Welding requires the vehicle to be clickable (hit zones), and the vehicle is a
+world-space `SpriteRenderer` that can only be reached through a GAP in the UI.
+So `#modal-container` → `Ignore` with `Position` on each panel is **load-bearing
+for the Chopshop's only mechanic**, not a nicety about hover. See §4 for the
+hit-testing reason.
+
+### 2c. RISK — repair has zero behaviour tests
+
+`ChopshopWorkbenchController` has no behaviour test file. The PlayMode test
+added 2026-08-29 (`ChopshopBeaconRevisit_Test`) covers beacon re-entry, NOT
+repair. Moving repair to a new host with no safety net is the exposure.
+**Write a repair-still-works test BEFORE the move, not after.**
+
+### 2d. Buy/Sell is BLOCKED on a design decision, not on build work
+
+There is no pricing formula for Chopshop parts — recorded as a standing content
+blocker on the buy/sell verbs. Selling needs a per-part value; buying needs a
+price and a stock roll. Flat multiplier on rarity? A scrap-value field on
+`PartDefinitionSO`? **Director call required before this surface can start.**
+Note `PartRarity` does not exist yet either.
+
+### 2e. Inline install/uninstall icons (director)
+
+Install and uninstall are **icons on the row, beside the part name** — not
+buttons revealed by expanding. Consequence: expand-in-place becomes purely a
+READING affordance (cards, stats), never an acting one. Cleaner than the
+`ux-designer` expand-then-button proposal, and it keeps drag as a pure
+shortcut. Read as: uninstall icon on an installed row, install icon on a
+storage tile.
+
+## 2-SUPERSEDED. Shape
 
 Full-screen modal mounted in the existing `#modal-container` socket, with a
 **transparent centre** so the world-space vehicle remains the subject:
@@ -178,12 +239,20 @@ already carries that on its own.
 
 ## 9. Build order
 
-1. **`SourceSlotId` on `CardDefinition`** — see §10. Small, and it is the
-   prerequisite for BOTH the garage's headline feature and uninstall.
-2. **Read-only garage** — layout, both list panels, storage strip with tabs,
-   collapsible rows, expanded rows showing granted cards, **and storage-tile
-   expand so comparison works in-layout** (§8). No install gesture.
-3. **Install / uninstall** — buttons first, drag as the shortcut, per §10.
+1. ~~**`SourceSlotId` on `CardDefinition`**~~ — **DONE + PUSHED**, Unity
+   `3562c4e`. See §10. Was the prerequisite for both the garage's headline
+   feature and uninstall.
+2. **Repair-still-works test** — BEFORE anything touches repair (§2c). It has
+   zero behaviour coverage today and it is the Chopshop's only live mechanic.
+3. **Read-only garage** — fullscreen, opened from the entry rail. Layout, both
+   list panels, storage strip with tabs, collapsible rows, expanded rows showing
+   granted cards, **and storage-tile expand so comparison works in-layout**
+   (§8). No install gesture, no repair move yet.
+4. **Move repair into the garage** (§2a) — gated on step 2.
+5. **Install / uninstall** — inline row icons (§2e), drag as the shortcut.
+   Requires the `LaunchSlotId` rebind (§10c) and a deep copy of effects first
+   (see the shared-effects note in §10b's commit).
+6. **Buy / Sell** — BLOCKED on the pricing decision (§2d), not on build work.
 
 ### Drag spike — PROPOSED THEN DROPPED
 
