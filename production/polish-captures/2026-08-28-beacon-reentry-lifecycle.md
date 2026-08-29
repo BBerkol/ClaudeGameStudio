@@ -3,7 +3,7 @@
 **Date:** 2026-08-28
 **System:** `ChopshopWorkbenchController` / `RestSceneController` activation lifecycle
 **Severity:** Player-facing. Every 2nd+ visit shows stale UI.
-**Status:** AWAITING USER APPROVAL — nothing implemented
+**Status:** IMPLEMENTED + VERIFIED 2026-08-29 — see §8.
 
 ---
 
@@ -319,7 +319,81 @@ subscription or a harness error, the test is broken, not the code.
 
 ---
 
-## 8. Process note
+## 8. Outcome — implemented and verified 2026-08-29
+
+Test: `Assets/Tests/PlayMode/CombatView/ChopshopBeaconRevisit_Test.cs`
+(+ `WastelandRun.Run.Authoring` added to the PlayMode asmdef references —
+`BiomeDistributionSO` / `BeaconSceneBindingSO` live in that assembly).
+
+**Seen-failing on unmodified HEAD, twice, with the required signature:**
+
+```
+Expected: "22"  But was:  "0"
+```
+
+Both times the failure landed on the FINAL assertion, not the harness gate —
+so visit 1 painted, all three mount/unmount/re-mount assertions passed, and
+there was no null ref, missing subscription or harness error. The test
+discriminates the defect from its own scaffolding.
+
+**Final state:** PlayMode 3/3 passed. EditMode **1163 / 1161 / 0 failed /
+2 skipped**, 0 `error CS` — dead on the pre-slice baseline.
+
+### 8a. Harness correction the three planning passes did not predict
+
+The first version of the test seeded the wallet AFTER `Initialize` mounted
+beacon 1, then asserted post-`yield`. That passed on HEAD and FAILED after the
+fix — at the harness gate, `Expected: "17" But was: "0"`.
+
+Not a re-clone race, and not a defect in the fix. **The cadence moved earlier in
+the frame.** `Start()` ran at end-of-frame, so a value written any time during
+that frame beat the paint. `OnBeaconActivated` fires *synchronously inside*
+`SetActive(true)`, so the handler correctly painted the wallet as it stood — 0.
+
+Corrected shape: park the resume cursor on **Start(0)** (which `ActivateFor`
+sends to `ClearAll`, mounting nothing), seed the wallet there, then reach each
+Chopshop by `AdvanceToNextBeacon`. Closer to how a player actually arrives, and
+it removes the frame-timing coupling entirely. Node 0 carries `IsResolved=true`
+— what a real save holds (`BiomeWebGenerator.cs:1461`), and required because
+`CommitNextBeacon:701` throws on an unresolved current beacon.
+
+**Because the test changed shape after its first red, it was re-proven against
+stashed controllers rather than trusting the earlier failure.** A regression
+lock is validated by the version of it that ships, not by an ancestor.
+
+**The generalisable point:** moving a refresh from `Start()` to a synchronous
+activation event moves it EARLIER within the frame, not just to a different
+trigger. Any consumer that wrote model state between the mount and end-of-frame
+was relying on `Start()`'s lateness. Production is unaffected — `Advance`
+commits fuel/storm before `OnBeaconChanged?.Invoke()`, and `BeginRunFromLoaded`
+fires it after the controller and session are fully built — but slice 4's garage
+mounts into this same event and inherits the same constraint.
+
+### 8b. Deltas from the plan
+
+- **Awake** also LogWarns when no `BeaconActivator` resolves. The plan named the
+  `FindAnyObjectByType` fallback but not the diagnostic; a silent null here
+  reproduces the exact bug being fixed, with no signal.
+- **The subscription sits ABOVE `OnEnable`'s degraded-UXML early-returns** so
+  the OnEnable/OnDisable pairing is unconditional. `ShowDialogueEntry` already
+  guards on `_root == null`, so a degraded tree fails quietly rather than
+  leaving a half-paired subscription.
+- **Three stale comments corrected** in `ChopshopWorkbenchController` that
+  asserted the OnEnable budget cadence as fact (`_repairBudget` field comment,
+  the note inside `ShowDialogueEntry`, and the class-level subscription
+  paragraph). Both classes gained a "Per-visit entry refresh" paragraph stating
+  there is no `Start()` and that adding one would fork the cadence.
+
+### 8c. Unrelated finding, logged not fixed
+
+`RunSceneHost.cs:1238` still documents `OnCombatModelCommitted` as firing
+"BEFORE the beacon is latched resolved" — the inverted ordering the 2026-08-27
+resolution-seam slice corrected across 19 other doc blocks. One survivor. Out of
+scope here; own commit.
+
+---
+
+## 9. Process note
 
 Three agent passes on a ~30-line fix, which is more than this size normally
 warrants. Recorded because each pass changed the outcome rather than confirming
