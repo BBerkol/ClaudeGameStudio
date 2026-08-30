@@ -89,11 +89,47 @@ mid-callback race.
 `GetDamagedSlots` off the idle frame. Mechanical moves lose gates like this;
 name it in review.**
 
-**1.0 survival.** The signature survives the garage host move. **Named risk: the
+**1.0 survival.** The signature survives the garage host move. ~~Named risk: the
 budget is not persisted, so quitting and reloading mid-visit re-fires
-`HandleBeaconActivated` and refunds it — a pre-existing save-scum exploit this
-refactor neither creates nor closes.** Landing in `Run` makes the fix a one-line
-`RunState` DTO field later; landing in `Combat` would make it an assembly move.
+`HandleBeaconActivated` and refunds it — a pre-existing save-scum exploit.~~
+**RETRACTED — see the correction below.** Landing in `Run` still makes the
+eventual fix cheaper, for the reasons in ruling 1.
+
+---
+
+## CORRECTION 2026-08-30 — the named exploit does not exist
+
+A second TD pass, commissioned to design the fix, traced the write path and
+**falsified the claim above**. Verified independently before accepting:
+
+- `EnqueueRunStateWrite` snapshots the registry **synchronously at the call
+  site** (`SaveSystem.Write.cs:186`), so disk holds the state at that instant.
+- All **nine** `EnqueueRunStateSnapshot` callers live in `RunSceneHost`: run
+  start (`:733`), resume (`:878`), both advance branches (`:982`, `:987`), and
+  the five resolution seams (`:1239`, `:1251`, `:1264`, `:1277`, `:1302`) —
+  which fire on RESOLVE, i.e. on leaving.
+- There is no quit or pause autosave (`RunSceneHost.cs:277`).
+
+**So nothing writes between arriving at a beacon and leaving it.** Quitting
+mid-visit restores the ARRIVAL snapshot: the welded Hp is gone along with the
+spent budget. A rollback, not a refund — the player loses their time, gains
+nothing.
+
+**Process note, which is why this correction is inline rather than a new file.**
+The original claim was phrased as a "named risk" in a verdict whose every other
+finding was correct and valuable. It was relayed to the director as a live
+exploit in a shipping build, written into `WeldRepairModel`'s xmldoc, and
+approved for a fix — before anyone traced the write path. One design cycle
+spent. `feedback_verify_reviewer_claims` exists for exactly this, and applies to
+agents whose other output is good.
+
+**The tripwire is the real deliverable.** This becomes a genuine exploit the
+instant ANY enqueue lands between arrival and departure — most likely the Phase
+2.5 garage wanting part installs to survive a crash. At that point the budget
+must be persisted **keyed by beacon index** AND `BeginVisit` must take that
+index and refill only on a change — **in the same commit**. Persisting the
+number alone leaves the next Chopshop starting spent; restoring alone is
+overwritten one call later by the unconditional `BeginVisit` on activation.
 
 ---
 
