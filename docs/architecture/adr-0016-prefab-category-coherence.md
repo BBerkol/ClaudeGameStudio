@@ -282,10 +282,17 @@ its compliance explicitly:
 - **Single vocabulary** — "conceptual category" and "edit cadence" are the only
   terms; "categorical fit," "category coherence" and "composition smell test"
   used in earlier documents all denote this same principle.
-- **No transitional constructs** — this ADR introduces no adapter, no bimodal
-  path, no vestigial enum and no stub. It produces no one-shot migration assets,
-  because Applications 1 and 3 are already true in the tree and Application 2
-  ratifies a shipped topology.
+- **No fixed-N hardcoding for variable-N data** — the principle is stated over
+  categories, not over an enumerated list of prefabs. Applications 1–3 are
+  worked examples, not an exhaustive registry, so a new composition unit needs
+  no edit here to be governed.
+- **CI-enforceable** — the containment invariant has a grep gate (see
+  *Enforcement*). The categorical judgment deliberately does not, and the reason
+  is stated rather than left as a gap.
+
+This ADR introduces no adapter, no bimodal path, no vestigial enum and no stub,
+and produces **no one-shot migration assets** — Applications 1 and 3 are already
+true in the tree and Application 2 ratifies a shipped topology.
 
 The one known deviation is stated in the open-violation note under Application 2
 rather than being silently carried.

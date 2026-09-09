@@ -12,27 +12,57 @@ This is the ordered work list.
 |---|---|
 | **0.1 CI gap** | **DONE** 2026-09-09 — Unity `2ecbf62` (gates + workflow), `d55365d` (ADR-0016 containment gate) |
 | **0.2 ADR-0016** | **DONE** 2026-09-09 — framework `4db7a0e`; TD RESHAPE applied, authoring rule cut |
-| 0.3 ADR status hygiene | not started |
-| 0.4 Dredge contradiction | not started |
+| **0.3 ADR status hygiene** | **DONE** 2026-09-09 — 0005 + 0006 Superseded, 0008 flagged NOT INSTALLED, 0017 contradiction resolved, 0001 marked partial |
+| **0.4 Dredge contradiction** | **DONE** 2026-09-09 — resolved in favour of permanent; stale test deleted |
 | Phases 1–6 | not started |
 
-**Unpushed:** both repos have local commits; `git push` is failing on GitHub
-credential auth (`Invalid username or token`). The CI workflow does not exist
-server-side until this is resolved, so 0.1 is only half-live.
+**Pushed** through 2026-09-09 (Unity `d55365d`, framework `1e083c1`). CI workflow
+is live server-side. `UNITY_LICENSE` is unset, so the EditMode job skips with a
+warning annotation — grep gates are the only server-side enforcement so far.
 
-**Found during 0.1/0.2, not yet fixed:**
+### 0.4 resolution — permanent, not temporary
+
+Git history settled it. The `[Ignore]` was added **2026-06-05** (`47e8c92`)
+citing a `TEMP` marker; that marker was removed and the comment rewritten to
+*"Held at 0 — the boss reads through exposable pressure + hull damage; the frame
+armor pool is not the pacing lever on this fight"* on **2026-07-05** (`43798a1`),
+a month later. The test's stated reason points at something deleted after it was
+written. `Dredge.FrameArmorHp = 0` is settled design.
+
+`ApplyDamage_HullTarget_DrainsArmor0First` therefore encoded an abandoned design
+and was **deleted**, not restored. Zero unique coverage lost —
+`IronShepherdLayoutTests:75` and `SmallFrameLayoutTests:100` both cover
+armor-drains-first live, plus 11 `AbsorbedByArmor` assertions in
+`DamagePipeline_R_ARM_Tests.cs`.
+
+**Verified by running the suite, not predicted: 1254 total / 1253 passed / 0
+failed / 1 skipped** (80.6s wall, `TestResults/editmode.xml`). Skips went 2 → 1
+exactly as the deletion implied; the remaining one is `StormPacingTuner_Test`'s
+intentional `[Explicit]` balance sweep.
+
+**The recorded baseline of 1244 was stale** — the suite has grown by 11 tests
+since 2026-08-30 (`GarageBinding_Test.cs` among them, added in `38b2b45`). Any
+future "suite at baseline" gate should use **1254 / 1253 / 0 / 1**.
+
+Deletion confirmed against the result XML rather than assumed: the surviving
+`ApplyDamage_HullTarget_DrainsArmor0First` is class-qualified to
+`SmallFrameLayoutTests`, not `DredgeLayoutTests`, which kept its other 19 cases.
+
+**Found during 0.1–0.4, not yet fixed:**
 
 - `validate-commit.sh:163-175` picks Python via `command -v`, which succeeds on
   the Windows Store alias stub while execution fails — so the JSON check would
   **false-block** any commit touching `assets/data/*.json`. Same family as the
   `jq` finding. Dormant (no such files today), one-line fix.
-- 3 of 4 post-2026-05-31 ADRs are missing the "ADR-0011 compliance" paragraph
-  that `adr-0011:108` mandates and `:219` lists as a validation criterion —
-  0013, 0015, 0017 all zero; only 0014 has it. Fold into 0.3.
-- Owed from ADR-0016's TD verdict: demote the duplicated smell-test rationale in
-  `adr-0017:332-338` to a pointer, and add a one-line note in ADR-0017's
-  `Related` recording that it cited ADR-0016 for two months before the document
-  existed.
+- **4 of 4** post-2026-05-31 ADRs lack the titled "ADR-0011 compliance"
+  paragraph that `adr-0011:108` mandates and `:219` lists as a validation
+  criterion. Corrected from an earlier "3 of 4" — ADR-0014's single grep hit is
+  an **inline phrase inside an Alternatives bullet** (`:296`), not the mandated
+  Decision-section paragraph. 0013, 0015 and 0017 have nothing. ADR-0016 ships
+  with a correct one. **Deliberately left unfixed:** writing four retroactive
+  compliance paragraphs is exactly the doc churn the project prefers to avoid,
+  and none of the four ADRs is actually non-compliant in substance — only
+  undocumented. Do it if `/architecture-review` starts failing on it.
 
 ---
 
