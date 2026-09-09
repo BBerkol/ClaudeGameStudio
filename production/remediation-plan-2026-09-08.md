@@ -306,6 +306,37 @@ string SystemId; Exception Inner; }` — **not** `Action<string>`. MasteryState
 hooks the same seam under ADR-0004's *blocking-dialog* policy and needs
 `Category` to branch.
 
+> ### ⛔ 3.2 AS WRITTEN BELOW IS WRONG — see TD verdict 2026-09-09
+>
+> `production/td-verdicts/2026-09-09-save-integrity-phase-3.md` returned AMEND.
+> The blocking finding, verified before acting:
+>
+> **`NodeMap.IsRunComplete` is POSITIONAL** —
+> `_beacons[CurrentIndex].Type == TerminalType` (`NodeMap.cs:101`). It is true the
+> instant the cursor *lands on* the boss beacon, **before the fight**.
+> `AdvanceToNextBeacon:969-983` already knows this and fires only
+> `OnBeaconChanged` for a combat terminal, commenting *"OnRunComplete deferred to
+> NotifyRewardClaimed."*
+>
+> So `if (_controller.IsRunComplete) OnRunComplete?.Invoke();` — the fix written
+> below — **shows the victory screen for a boss the player never fought**, and
+> awards XP for it once the stats panel lands. Strictly worse than Defect A.
+>
+> Correct predicate is **terminal AND resolved**, which equals `RunStatus.Victory`
+> because the latch rides atomically with `MarkResolved` on both terminal shapes
+> (`RunController.cs:395-403` and `:716-720`), and `is_resolved` **is** persisted
+> (`NodeMapDto.cs:249-250`) — so it reconstructs without persisting `RunStatus`.
+> Add `IsRunOver => IsRunComplete && Current.IsResolved`; keep `IsRunComplete` for
+> the positional callers that legitimately want it.
+>
+> Two more blocking amendments: the fan-out may fire into an **empty delegate**
+> (`RunSceneOverlayHost` subscribes in `OnEnable`, `SaveBootstrap` is
+> `[DefaultExecutionOrder(-100)]`) — probe before writing; and there are **FOUR**
+> copies of the map-current predicate, not three — the fourth is
+> `StormAdvanceVisualPacer.cs:269-276`.
+>
+> **3.2 is HELD pending a user decision** — see "The Shape fork" below.
+
 ### 3.2 — Defect A: resume-after-completion
 
 Verified chain: boss dies → snapshot written with cursor on resolved terminal →
