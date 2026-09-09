@@ -2,11 +2,39 @@
 
 ## Status
 
-**Accepted** (2026-05-25) — technical-director sign-off granted 2026-05-25;
-memory budget table and build-pipeline integration plan added as part of
+**Accepted (2026-05-25) — NOT INSTALLED. Deferred-future; do not plan against
+it.** Re-labelled 2026-09-09.
+
+> **Nothing in this ADR has been adopted.** Verified 2026-09-09:
+>
+> - The Addressables **package is not installed** — zero hits for
+>   `addressables` in `Packages/manifest.json`.
+> - **Zero runtime usage** — no file under `Assets/Scripts` references
+>   `UnityEngine.AddressableAssets`.
+> - `scriptingBackend` is unset in `ProjectSettings.asset`, i.e. still **Mono**,
+>   so the **IL2CPP smoke test this ADR makes a shipping precondition has never
+>   been run**.
+>
+> The project loads assets through `Assets/Resources/` instead. That is a real
+> divergence from this ADR, not an oversight in the loading code.
+>
+> The technical decision is still considered sound and the ADR is kept for when
+> asset volume justifies it — but "Accepted" was being read as "this is how the
+> project loads assets," which is false. Any story or estimate that assumes
+> Addressables is available must first budget the package install, the group
+> setup, and the IL2CPP smoke test.
+>
+> Consequence for ADR-0007 §3.3: `AssetReferenceT<ChassisArtBundle>` is **not**
+> unblocked in practice. The sentence below claiming otherwise was true of the
+> decision and false of the tree.
+>
+> Re-labelled during the 2026-09-08 clean-slate audit
+> (`production/remediation-plan-2026-09-08.md` §0.3).
+
+Original acceptance note (2026-05-25): technical-director sign-off granted;
+memory budget table and build-pipeline integration plan added as part of the
 Accepted transition. All three acceptance conditions stated in the original
-Proposed draft are now met. ADR-0007 §3.3 `AssetReferenceT<ChassisArtBundle>`
-is now unblocked for implementation.
+Proposed draft were met at that time.
 
 ## Date
 

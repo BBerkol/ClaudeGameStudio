@@ -2,7 +2,25 @@
 
 ## Status
 
-Accepted
+**Superseded** (2026-09-09) by ADR-0007 → ADR-0010 → ADR-0012.
+
+> **Do not implement this ADR.** It was Accepted 2026-04-25 and never built.
+> Every interface and asset type it names is absent from the tree — verified
+> 2026-09-09, zero hits across `Assets/Scripts` and `Assets/Tests` for
+> `IPartCatalog`, `IVehicleView`, `IVehicleMutator` and `ChassisDefinitionSO`.
+>
+> The problem it addressed was solved differently and better. ADR-0007
+> introduced the frame-driven variable-slot system; ADR-0010 retired the slot
+> vocabulary down to a single `string slotId`; ADR-0012 established
+> `PartDefinitionSO` and sum-of-parts armor. Those three together own what this
+> ADR proposed, and the shipped shape is not a subset of it — the catalog
+> indirection and the view/mutator split were both dropped deliberately.
+>
+> Marked Superseded during the 2026-09-08 clean-slate audit
+> (`production/remediation-plan-2026-09-08.md` §0.3). It had sat Accepted and
+> unimplemented for four and a half months, which meant `/story-readiness` and
+> `/gate-check` would have treated it as live guidance for any story that
+> referenced it.
 
 ## Date
 

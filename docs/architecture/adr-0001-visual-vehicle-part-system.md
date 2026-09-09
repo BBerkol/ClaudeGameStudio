@@ -1,7 +1,29 @@
 # ADR-0001: Visual Vehicle Part System
 
 ## Status
-Accepted (Amended 2026-04-25 by ADR-0005 — see "ADR-0005 Amendments" subsection below)
+**Accepted — PARTIALLY IMPLEMENTED** (Amended 2026-04-25 by ADR-0005 — see
+"ADR-0005 Amendments" subsection below; note ADR-0005 is itself **Superseded**
+as of 2026-09-09).
+
+> **Split state, verified 2026-09-09.** Half of this ADR shipped and half did
+> not, and the two halves have very different standing:
+>
+> - **Data half — LANDED.** `DamageState`, per-slot damage routing and
+>   `ApplyDamage(slotId, …)` are live, though by way of ADR-0007 → ADR-0010 →
+>   ADR-0012 rather than this ADR's original vocabulary.
+> - **Visual half — UNBUILT.** Zero files under `Assets/Scripts` reference
+>   `MaterialPropertyBlock`, and there are **no project-authored** `.shadergraph`
+>   assets (the four in the tree are all TextMesh Pro package shaders under
+>   `Assets/TextMesh Pro/Shaders/`). The per-part visual damage-state rendering
+>   this ADR specifies does not exist.
+>
+> **What this gates:** vehicle *art* production, not the current parts axis.
+> Parts data, install/uninstall, armor contribution and reward flow all work
+> without it. Do not treat this ADR as blocking Phase 2.5 work; do treat it as
+> unresolved before any vehicle-art slice.
+>
+> Annotated during the 2026-09-08 clean-slate audit
+> (`production/remediation-plan-2026-09-08.md` §0.3).
 
 ## Date
 2026-04-19

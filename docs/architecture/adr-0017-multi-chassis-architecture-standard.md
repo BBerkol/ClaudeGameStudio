@@ -49,7 +49,7 @@ chassis with identical stats).
 | **Depends On** | ADR-0007 (Frame-driven variable-slot system — `IFrameLayout`, `SlotDefinition`, `FrameLayoutSO`); ADR-0011 (no bridges at done); ADR-0012 **amendment** (universal sum-of-parts, `InstallPart(armorContribution=0)` default-param removal, enemy narrowing) — must land in the same or prior commit as this ADR flipping to Accepted; ADR-0013 (sibling reward-source composition — precedent for `IPartRewardSource`); ADR-0015 (configuration narrowing — enemy Frame-armor stays authoring-side, not runtime branch); ADR-0016 (category coherence — component sibling to VehicleVisual, not nested) |
 | **Enables** | Phase 2.5 parts axis (2.5A data-model, 2.5B chassis refactor, 2.5C part drops, 2.5D `IPartRewardSource`, 2.5E Chopshop sell + Inventory, 2.5F fullscreen UIs, 2.5G chassis 2+3 authoring, 2.5H Chopshop buy stock, 2.5I Codex + Mastery) |
 | **Blocks** | All of Phase 2.5. No parts-axis work can begin until ADR-0017 + ADR-0012 amendment are Accepted. |
-| **Ordering Note** | ADR-0017 flips from Proposed → Accepted only when ADR-0012 amendment is Accepted. Both amendments land as one atomic Phase 2.5A commit; ADR statuses flip together. |
+| **Ordering Note** | **RESOLVED 2026-09-09.** This row previously read "ADR-0017 flips from Proposed → Accepted only when ADR-0012 amendment is Accepted," contradicting the Accepted status in the header. The condition is met: the ADR-0012 amendment exists (`adr-0012-part-data-authoring-sum-of-parts-armor.md:275`, status `Accepted (2026-06-02); Amended (2026-07-05)`) and Amendment A2 is executed in code — `Vehicle.InstallPart(string slotId, int maxHp, int armorContribution, …)` at `Vehicle.cs:418-419` carries **no default** on `armorContribution`. Accepted stands. |
 
 ## Context
 
@@ -329,11 +329,11 @@ The atomic commit contains:
 - **Description**: Add `_door`, `_bumper`, `_canister`, `_visor`, `_light`
   as fields on `VehicleVisual`. Reuse existing component.
 - **Pros**: One fewer component. No new authoring surface.
-- **Cons**: Violates `feedback_composition_smell_test` — `VehicleVisual`'s
-  category is "core chassis composition" (Weapon/Engine/Mobility/Hull);
-  Bodywork is a distinct category. Would leak into ADR-0016 category
-  coherence violation. Also brittle for chassis 2 + 3 if Bodywork slot
-  counts differ.
+- **Cons**: Category violation — see **ADR-0016**, which owns this reasoning.
+  `VehicleVisual`'s category is core chassis composition
+  (Weapon/Engine/Mobility/Hull); Bodywork is a distinct category, so it ships
+  as a sibling component per ADR-0016 Application 3. Also brittle for chassis
+  2 + 3 if Bodywork slot counts differ.
 - **Rejection Reason**: Slice 2.6 already proved the sibling-component
   pattern works (`VehicleHudAnchors`). Mirror it.
 
@@ -461,6 +461,13 @@ tests use `FrameLayoutSO` asset fakes as designed.
   component sibling to `VehicleVisual`).
 - **Precedent for `VehicleBodyworkAnchors`**: Slice 2.6 Phase 1c
   `VehicleHudAnchors` (2026-06-30, see `project_hud_anchors_slice_26.md`).
+- **ADR-0016 authoring-date gap**: this ADR was Accepted 2026-07-05 citing
+  ADR-0016 five times, including in its `Depends On` row, while that document
+  **did not exist** — it was authored 2026-09-09 during the clean-slate audit
+  and back-dated to its 2026-06-17 decision so this dependency is
+  chronologically valid. The principle was real and TD-decided; only the
+  document was missing. Recorded so a future reader can tell this ADR was
+  approved against a live rule rather than a phantom.
 - **Closes**: ADR-0007 xmldoc pre-declared `MountDirection` field —
   ADR-0011 vestigial-doc drift.
 - **Code files touched (Phase 2.5A)**:

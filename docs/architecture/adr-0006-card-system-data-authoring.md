@@ -2,7 +2,28 @@
 
 ## Status
 
-Accepted
+**Superseded** (2026-09-09) by the shipped `CardEffect` POCO hierarchy and
+ADR-0013.
+
+> **Do not implement this ADR.** It was Accepted 2026-04-25 and largely never
+> built. Verified 2026-09-09: of the type names it specifies, only
+> `CardDefinitionSO` exists (5 files). `CardEffectSO`, `CardDatabase`,
+> `ICardEffect`, `CardProjection`, `CardDrawPipeline`, `CardRewardTable`,
+> `CardPool` and `CardTier` are all zero-hit, and the `WastelandRun.Cards`
+> assembly definition this ADR requires does not exist.
+>
+> What shipped instead is a **better shape**, not a lesser one: a `CardEffect`
+> POCO hierarchy (12 files) resolved against `DamageEffectSO` authority, plus
+> ADR-0013's `ICardRewardSource` sibling seam for reward composition. The
+> `SO`-per-effect and central-database designs this ADR proposed were both
+> rejected in practice — the POCO hierarchy keeps card effects inside the
+> engine-free combat assembly per ADR-0002, which an `SO`-typed effect could
+> not do.
+>
+> Marked Superseded during the 2026-09-08 clean-slate audit
+> (`production/remediation-plan-2026-09-08.md` §0.3). Left Accepted, it would
+> have been read as a live instruction to build a parallel card-data stack
+> alongside the one that already works.
 
 ## Date
 
