@@ -4,7 +4,35 @@ Clean-slate sweep before resuming feature work. Every claim below was verified
 by direct code read this session; agent findings that did not survive
 verification are marked **CORRECTED**.
 
-Nothing here has been implemented. This is the ordered work list.
+This is the ordered work list.
+
+## Progress
+
+| Item | State |
+|---|---|
+| **0.1 CI gap** | **DONE** 2026-09-09 — Unity `2ecbf62` (gates + workflow), `d55365d` (ADR-0016 containment gate) |
+| **0.2 ADR-0016** | **DONE** 2026-09-09 — framework `4db7a0e`; TD RESHAPE applied, authoring rule cut |
+| 0.3 ADR status hygiene | not started |
+| 0.4 Dredge contradiction | not started |
+| Phases 1–6 | not started |
+
+**Unpushed:** both repos have local commits; `git push` is failing on GitHub
+credential auth (`Invalid username or token`). The CI workflow does not exist
+server-side until this is resolved, so 0.1 is only half-live.
+
+**Found during 0.1/0.2, not yet fixed:**
+
+- `validate-commit.sh:163-175` picks Python via `command -v`, which succeeds on
+  the Windows Store alias stub while execution fails — so the JSON check would
+  **false-block** any commit touching `assets/data/*.json`. Same family as the
+  `jq` finding. Dormant (no such files today), one-line fix.
+- 3 of 4 post-2026-05-31 ADRs are missing the "ADR-0011 compliance" paragraph
+  that `adr-0011:108` mandates and `:219` lists as a validation criterion —
+  0013, 0015, 0017 all zero; only 0014 has it. Fold into 0.3.
+- Owed from ADR-0016's TD verdict: demote the duplicated smell-test rationale in
+  `adr-0017:332-338` to a pointer, and add a one-line note in ADR-0017's
+  `Related` recording that it cited ADR-0016 for two months before the document
+  existed.
 
 ---
 
@@ -479,9 +507,17 @@ before a third mode lands, and `ApplySurface(Entry|Garage|Vendor)`.
 
 ### 6.6 — Chopshop traps worth not rediscovering
 
-- **`ChopshopRoot.prefab` is edited by SURGICAL YAML, never re-authored** —
-  re-authoring orphans the `m_IsActive` override at `RunScene.unity:659-666` and
-  boots the chopshop over the run map.
+- **`ChopshopRoot.prefab` must not be RE-authored** — corrected 2026-09-09. The
+  earlier wording ("edited by surgical YAML, never authored by the tool") was
+  wrong: `CombatPrefabAuthor.AuthorChopshopRootPrefab` does own the prefab and
+  writes it via `SaveAsPrefabAsset` (`:9127`), and `AuthorAllScenes` calls it
+  (`:8273`). The real trap is narrower and worse. The author calls
+  `ActivateRecursively(root)` immediately before saving (`:9126`), so the prefab
+  is written **active**, while `RunScene.unity:663-666` carries an
+  `m_IsActive: 0` override targeting `fileID: 8814606828562375546`. Re-authoring
+  reissues the GameObject fileIDs, orphaning that override — the ChopshopRoot
+  instance then stays active and the chopshop boots over the run map.
+  Authoring it the *first* time is fine; re-running it is what breaks.
 - `RecomputeArmorPool` no-ops until `FillArmorPool` has run — a fixture that
   skips it looks like it proves something and doesn't.
 - `UnbindWorkbench` does not hide the bars; the `HudAnchors` container must be
