@@ -14,7 +14,62 @@ This is the ordered work list.
 | **0.2 ADR-0016** | **DONE** 2026-09-09 — framework `4db7a0e`; TD RESHAPE applied, authoring rule cut |
 | **0.3 ADR status hygiene** | **DONE** 2026-09-09 — 0005 + 0006 Superseded, 0008 flagged NOT INSTALLED, 0017 contradiction resolved, 0001 marked partial |
 | **0.4 Dredge contradiction** | **DONE** 2026-09-09 — resolved in favour of permanent; stale test deleted |
-| Phases 1–6 | not started |
+| Phase 1.1 prefab drift | not started — needs user (approval-gated by protocol) |
+| **2.1 Bind harnesses** | **DONE** 2026-09-09 — Unity `a1689f9`; scope was 2 files, not 3 |
+| **2.2 Controller tests** | **PARTIAL** 2026-09-09 — Unity `464704b`; RunHUDController covered, RunSceneOverlayHost deferred |
+| Phases 3–6 | not started |
+
+### Phase 2 corrections to this plan
+
+**2.1 was two files, not three.** Only `RunSceneHost_Test` and
+`RunSceneHost_SeedRetry_Test` instantiate the host unbound — established by
+checking which tests actually `AddComponent<RunSceneHost>`, not by grepping the
+class name. `PartRewardPicker_Test` was a hedged guess here ("and probably");
+it has **zero** references to `SaveSystem` or the host and its asmdef does not
+reference `WastelandRun.Save`, so it cannot be relying on the swallow.
+
+**Bind through `SaveBootstrap.Bind`, not `SaveSystem.Bind`.** The plan said the
+latter. `SaveBootstrap` is what `RunSceneHost_Resume_Test` already uses, and it
+registers all **11** run-state serializables — which is the actual upgrade the
+plan wanted. Binding `SaveSystem` directly would require duplicating that
+11-entry registration list in test code, which drifts the day a 12th DTO lands.
+
+**The inactive-GameObject pattern is mandatory.** `SaveBootstrap.Awake()` binds a
+`DiskSaveStorage` at `Application.persistentDataPath` — on a live GameObject that
+writes real save files from a unit test.
+
+**2.2's coverage claim was wrong.** The plan says `RunSceneOverlayHost`,
+`RunHUDController` and `BeaconActivator` have zero controller tests.
+`BeaconActivator` is instantiated by two PlayMode tests
+(`ChopshopBeaconRevisit_Test`, `ChopshopRepairMode_Test`). Only
+`RunHUDController` and `RunSceneOverlayHost` were genuinely uncovered.
+
+**`RunSceneOverlayHost` is still uncovered.** Its duplicated predicate sits at
+`:126-130`. It is deferred because the predicate is only observable through a
+live `MapViewController` (`Show`/`Hide`/`RunOverlayEvents.RaiseOverlayShown`),
+and `MapViewController.Bind` warns-and-returns unless `_beaconsLayer` and
+`_connectionsLayer` are populated — a materially larger fixture than
+`RunHUDController`'s flat element list. Phase 3 refactors this call site anyway
+and its merge gate specifies its own tests, so the coverage lands there.
+
+### Phase 3 prerequisite discovered during 2.1
+
+`RunSceneHost_EnqueuesWrite_Test.BeginNewRun_Without_Bound_Storage_Logs_Warning_Does_Not_Throw`
+**explicitly asserts the swallow exists**, justifying itself in-comment by
+"harnesses that don't run SaveBootstrap" — a premise 2.1 dissolved. Phase 3 must
+replace it with the inverted assertion already specified in §3.4 item 4
+(`Snapshot_WhenSaveSystemUnbound_Throws`). Deleting the catch without touching
+this test turns it red.
+
+Also confirmed for §3.1: the **projection half is synchronous**.
+`SaveSystem.EnqueueRunStateWrite` calls `SnapshotRunRegistry()` (all 11 `ToDto`
+calls) inline and only queues the byte-write for the background consumer. So
+wrapping `SnapshotRunRegistry()` as §3.1 proposes does catch the projection
+failures, and `DrainPendingForTests()` **races** the consumer that
+`SaveBootstrap.Bind` starts — whichever side dequeues first wins. Tests that need
+the file must wait on the file, not drain.
+
+**Suite: 1263 / 1262 / 0 failed / 1 skipped** after Phase 2.
 
 **Pushed** through 2026-09-09 (Unity `d55365d`, framework `1e083c1`). CI workflow
 is live server-side. `UNITY_LICENSE` is unset, so the EditMode job skips with a
