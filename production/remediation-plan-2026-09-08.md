@@ -559,8 +559,13 @@ honestly populated and awaiting the defeat-summary consumer.
   verified FALSE.** A transitional comment that is also factually wrong is what
   let this survive prior audits; grep-verify any xmldoc asserting "persisted" or
   "consumed by" before trusting it.
-- **`BeaconTravelTick` cursor fields → own item, sequenced against the
-  storm-visual single-writer rewrite.** ~~"hardcoded zero storm values"~~ — it is
+- **`BeaconTravelTick` cursor fields — DONE 2026-09-10, Unity `d2a7633`.**
+  Shipped ahead of the storm rewrite rather than sequenced behind it: the
+  false-green was live, and the rewrite is better off shaping its own payload
+  than inheriting a placeholder. Ctor 10→8; `StormAdvanceStrips` kept.
+  Original framing below, preserved because it was wrong in an instructive way.
+
+  ~~→ own item, sequenced against the storm-visual single-writer rewrite.~~ ~~"hardcoded zero storm values"~~ — it is
   **not a bug** (`PreviewedStormCursorBefore/After` have zero readers, so nothing
   displays zeros) and **not a pure deletion** (10→8 positional ctor across 4
   files). The real defect is a **false-green test**:

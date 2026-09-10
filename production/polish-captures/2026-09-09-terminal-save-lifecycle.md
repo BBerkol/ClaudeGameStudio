@@ -368,9 +368,30 @@ TD second pass confirms this framing and rules it **contained enough to be a TD
 decision — no game-designer sign-off is needed to implement.** But the deferral
 is tracked, not implicit:
 
-> **Open design question.** Owner: `game-designer`. Blocks the mastery-XP slice,
-> **not** this one. *Does a storm-engulf loss award mastery XP identically to a
-> combat defeat?*
+> ~~**Open design question.** Owner: `game-designer`. Blocks the mastery-XP
+> slice, **not** this one. *Does a storm-engulf loss award mastery XP
+> identically to a combat defeat?*~~
+>
+> **ANSWERED by the user 2026-09-10: yes — XP is PROGRESS-based, not
+> outcome-based.** *"Gameover is same either way. You gain as much as you
+> progress."* All three terminals award identically for the same progress; no
+> death penalty, no victory bonus.
+
+**Consequence for the XP slice.** The award does **not** branch on
+`RunStatus` — it reads the progress figure at the moment the run ends. The
+`OnRunTerminated(RunStatus)` payload stays useful for defeat-screen copy and
+telemetry ("the storm took you" vs "destroyed in combat"), but not for the
+calculation. Do not delete the payload on the strength of this, and do not
+branch the award on it.
+
+**`RunStatus.Engulfed` is NOT made vestigial by this answer.** Its load-bearing
+job is independent of XP: it is what makes `RunController`'s `Status != Ongoing`
+guards fire on engulfment, which they could not before — the stranded-storm
+guard and the H6 `ResolveEvent` invariant both depend on it. It must not be
+folded back into `Defeat`.
+
+**Still open, and belonging to the XP slice:** what "progress" is measured in —
+beacons cleared, distance along the map's X axis, or something else.
 
 **In scope for this slice: rewrite the `RunStatus.cs` xmldoc.** It is stale
 independently of this work, on two counts, both verified:
