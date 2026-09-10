@@ -14,14 +14,14 @@ This is the ordered work list.
 | **0.2 ADR-0016** | **DONE** 2026-09-09 — framework `4db7a0e`; TD RESHAPE applied, authoring rule cut |
 | **0.3 ADR status hygiene** | **DONE** 2026-09-09 — 0005 + 0006 Superseded, 0008 flagged NOT INSTALLED, 0017 contradiction resolved, 0001 marked partial |
 | **0.4 Dredge contradiction** | **DONE** 2026-09-09 — resolved in favour of permanent; stale test deleted |
-| Phase 1.1 prefab drift | not started — needs user (approval-gated by protocol) |
+| **1.1 Prefab drift** | **DONE** 2026-09-10 — investigated and **cleared as a FALSE POSITIVE**. Nothing baked because nothing drifted. Capture: `production/polish-captures/2026-09-10-prefab-drift-sentinel-cleared.md`. **Phase 4.1 unblocked** |
 | **2.1 Bind harnesses** | **DONE** 2026-09-09 — Unity `a1689f9`; scope was 2 files, not 3 |
 | **2.2 Controller tests** | **PARTIAL** 2026-09-09 — Unity `464704b`; RunHUDController covered, RunSceneOverlayHost deferred |
 | **3.1 Projection wrap** | **DONE** 2026-09-09 — Unity `cdf03a3` (Defect B, both halves) |
 | **3.2 + 3.3 Defects A + C** | **DONE** 2026-09-10 — Unity `80b05ac` (ClearRunState + threading), `56b7338` (clear-on-terminal wiring). Merged into ONE slice under the user's clear-on-terminal ruling; ~40% of §3.2 as written became unnecessary |
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
 | **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
-| 4.1 Beacon cleanup | not started — **blocked on Phase 1.1** (acceptance test runs `Author All Scenes` twice) |
+| 4.1 Beacon cleanup | not started — **UNBLOCKED** 2026-09-10. Note its acceptance test (`Author All Scenes` twice, empty diff) hits the batchmode dialog guard: needs a human at the Editor, or a `-quit`-bearing call to a non-guarded entry point |
 | Phases 5–6 | not started. **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor |
 
 ### Phase 3 corrections to this plan
