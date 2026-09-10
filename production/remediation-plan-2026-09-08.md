@@ -17,7 +17,36 @@ This is the ordered work list.
 | Phase 1.1 prefab drift | not started — needs user (approval-gated by protocol) |
 | **2.1 Bind harnesses** | **DONE** 2026-09-09 — Unity `a1689f9`; scope was 2 files, not 3 |
 | **2.2 Controller tests** | **PARTIAL** 2026-09-09 — Unity `464704b`; RunHUDController covered, RunSceneOverlayHost deferred |
-| Phases 3–6 | not started |
+| **3.1 Projection wrap** | **DONE** 2026-09-09 — Unity `cdf03a3` (Defect B, both halves) |
+| **3.2 + 3.3 Defects A + C** | **DONE** 2026-09-10 — Unity `80b05ac` (ClearRunState + threading), `56b7338` (clear-on-terminal wiring). Merged into ONE slice under the user's clear-on-terminal ruling; ~40% of §3.2 as written became unnecessary |
+| **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
+| Phases 4–6 | not started |
+
+### Phase 3 corrections to this plan
+
+**Two terminals became five.** The plan named boss-victory and combat-defeat.
+Storm engulfment is the same defect at three more model sites — `RunSession.cs`
+Advance, `AutoAdvanceStrandedStorm`, and `AdvanceStormFromEvent`. The last of
+these was missed by the first TD pass too and found on verification.
+
+**The boss terminal is not boss death.** A reward picker runs between the boss
+dying and `OnRunComplete`; the true model terminal is `ResolveCombatRewards`,
+one frame earlier than `NotifyRewardClaimed`.
+
+**The slice would have CREATED a resurrection bug** if scoped as written — see
+the capture's §3 (H6). `NotifyEventResolved` discards its `BeaconOutcome` and
+re-snapshots unconditionally, so a storm-cost event choice that engulfs the
+player mid-encounter would have written the finished run straight back to disk.
+Harmless before `ClearRunState` existed; live defect the moment it did.
+
+**"Do NOT persist RunStatus" held, and cost nothing.** The load path derives the
+same answer from the map via `NodeMap.IsTerminalCleared`. Defeat and engulfment
+are not map-derivable and deliberately get no load guard — accepted residual,
+documented in the capture.
+
+**§3.4's merge gate is met except for one named gap** (host half of the H6
+test), accepted by the user 2026-09-10 with the reasoning recorded in the
+capture. Do not read the gate as fully satisfied.
 
 ### Phase 2 corrections to this plan
 
