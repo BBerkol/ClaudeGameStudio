@@ -21,7 +21,7 @@ This is the ordered work list.
 | **3.2 + 3.3 Defects A + C** | **DONE** 2026-09-10 — Unity `80b05ac` (ClearRunState + threading), `56b7338` (clear-on-terminal wiring). Merged into ONE slice under the user's clear-on-terminal ruling; ~40% of §3.2 as written became unnecessary |
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
 | **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
-| 4.1 Beacon cleanup | not started — **UNBLOCKED** 2026-09-10. Note its acceptance test (`Author All Scenes` twice, empty diff) hits the batchmode dialog guard: needs a human at the Editor, or a `-quit`-bearing call to a non-guarded entry point |
+| 4.1 Beacon cleanup | **SCOPED, NOT STARTED** — no code written. TD verdict APPROVE-WITH-AMENDMENTS obtained 2026-09-10 (`production/td-verdicts/2026-09-10-phase-4-1-beacon-cleanup.md`), every plan claim re-verified, and the stated acceptance test **disproven by experiment** (replacement criteria in §4.1). Start at "Recommended sequence" step 1 in the verdict |
 | Phases 5–6 | not started. **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor |
 
 ### Phase 3 corrections to this plan
@@ -506,8 +506,35 @@ Haven's screen.
 **Order is not optional.** Delete first and the next author run silently
 recreates everything.
 
-**Acceptance test:** run `Author All Scenes` twice back to back — `git diff` must
-be empty. Requires Phase 1.1 done first.
+**~~Acceptance test:~~ run `Author All Scenes` twice back to back — `git diff`
+must be empty.** ⛔ **THIS IS UNACHIEVABLE AND ALWAYS WAS. Proven by experiment
+2026-09-10** on a scratch branch against an unmodified tree:
+
+| Run | Against | Result |
+|---|---|---|
+| 1 | committed clean tree | **5 files churned** (2 prefabs, 3 scenes) |
+| 2 | run 1's output | **3 files churned** — scenes only, 283 ins / 283 del |
+
+Both runs exit 0, zero errors, zero semantic change. **Prefabs settle after one
+run; scenes never settle** — `AuthorRunScene` does `NewScene(Single)` +
+`new GameObject(...)`, minting fresh `m_LocalIdentfierInFile` values and
+re-serialising in a different order every invocation.
+
+**Generalise it: any acceptance criterion in this project based on diffing
+author output against committed SCENES is unachievable. Do not write another.**
+
+**Replacement criteria** — headless, and they test what 4.1 actually claims.
+After Commit B, run `Author All Scenes` **once**:
+
+1. `git status --porcelain Assets/Scenes/Beacons/` shows no `Haven.unity` —
+   the resurrection-immunity the commit order buys.
+2. `EditorBuildSettings.asset` still has exactly **3** entries.
+3. `git diff` on `BeaconSceneBinding.asset` is empty.
+
+Any other churn is the pre-existing idempotence problem — file it, don't let it
+block 4.1.
+
+**Prerequisite Phase 1.1 is DONE** (sentinel was a false positive).
 
 **Also grep before shipping:** `LoadScene(` with an integer argument — removing
 build entries renumbers the list. Expected zero hits; paste the result.
