@@ -20,7 +20,9 @@ This is the ordered work list.
 | **3.1 Projection wrap** | **DONE** 2026-09-09 — Unity `cdf03a3` (Defect B, both halves) |
 | **3.2 + 3.3 Defects A + C** | **DONE** 2026-09-10 — Unity `80b05ac` (ClearRunState + threading), `56b7338` (clear-on-terminal wiring). Merged into ONE slice under the user's clear-on-terminal ruling; ~40% of §3.2 as written became unnecessary |
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
-| Phases 4–6 | not started |
+| **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
+| 4.1 Beacon cleanup | not started — **blocked on Phase 1.1** (acceptance test runs `Author All Scenes` twice) |
+| Phases 5–6 | not started. **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor |
 
 ### Phase 3 corrections to this plan
 
@@ -514,7 +516,61 @@ build entries renumbers the list. Expected zero hits; paste the result.
 (referenced only in a comment at `BeaconActivator.cs:84`, but in build settings).
 Different question, own follow-up.
 
-### 4.2 — Pure deletions (ADR-0011 residue)
+### 4.2 — Pure deletions (ADR-0011 residue) — **DONE 2026-09-10, Unity `f832359`**
+
+> **This section as originally written was WRONG IN FIVE PLACES.** Corrected
+> text below; the original claims are struck through so the errors stay legible.
+> Verdict: `production/td-verdicts/2026-09-10-phase-4-2-dead-code-deletions.md`.
+>
+> **The methodological error to not repeat:** the original counted
+> construction-site *writes* and *test asserts* as consumption. `BeaconOutcome`
+> has **zero production readers of any field** —
+> `RunSceneHost.NotifyEventResolved` never reads its parameter. Grep for reads
+> excluding the declaring file and the test file before calling anything "live".
+>
+> **The distinction that decided every item:** *superseded* (the named consumer
+> shipped and chose a different input) → delete. *Awaiting a consumer AND
+> honestly populated* → keep. *Awaiting a consumer AND impossible to populate*
+> → delete — a field no code path can ever fill is a stub, not scaffolding.
+
+**Shipped:** `HostAdvanceReason` + `MapAdvanceReason`; `StatKind.cs` **and
+`StatModifier.cs`** (the original named only the first — it does not compile
+alone); `VehicleVisualSlot` **and `GetSlot`**; `BeaconOutcome.CardsOffered`,
+`.PartOffered` **and the zero-caller `.ZeroDelta`**; `MerchantSceneController`'s
+choice-2 handler + its subscribe/unsubscribe pair.
+
+**Kept, against the original text:** all **10** `EncounterPayload` members —
+ordinals are load-bearing (they track the GDD one-for-one so save/telemetry
+round-trips without a mapping table) and Rest/Merchant/Chopshop beacons exist as
+PrefabRoots, they just do not route through the handler seam yet. **Unemitted ≠
+dead**; this is where ADR-0015 genuinely applies. Also kept:
+`ScrapDelta`/`FuelDelta`/`PayloadType`/`WasCombatRewardClosed`/`RunTerminated`,
+honestly populated and awaiting the defeat-summary consumer.
+
+**Moved OUT of 4.2** (neither is a pure deletion):
+
+- **`AdvanceReason` + `BeaconTransition.Reason` → Phase 5.** Zero *production*
+  readers; all three consumers named in its xmldoc shipped using other inputs.
+  The correct cut is the whole enum **plus** the field — a one-member enum
+  threaded through four layers is a worse #4 violation than the two-member one.
+  4-layer signature change across `INodeMapMutator`, `RunController`,
+  `RunSession`, `NodeMap`, `RunSceneHost`, the ctor and ~11 test sites.
+  **`BeaconType.cs:41-46` claims `Reason` is "persisted on `BeaconTransition`" —
+  verified FALSE.** A transitional comment that is also factually wrong is what
+  let this survive prior audits; grep-verify any xmldoc asserting "persisted" or
+  "consumed by" before trusting it.
+- **`BeaconTravelTick` cursor fields → own item, sequenced against the
+  storm-visual single-writer rewrite.** ~~"hardcoded zero storm values"~~ — it is
+  **not a bug** (`PreviewedStormCursorBefore/After` have zero readers, so nothing
+  displays zeros) and **not a pure deletion** (10→8 positional ctor across 4
+  files). The real defect is a **false-green test**:
+  `BeaconTravelTick_Test.cs:28-29` asserts ctor propagation using synthetic
+  values the sole production emitter never produces, so the suite structurally
+  cannot catch the discrepancy. The fields also cannot be honestly populated —
+  `StormState` exposes no normalized-X accessor. `StormAdvanceStrips` stays.
+
+<details>
+<summary>Original text (superseded — kept for audit trail)</summary>
 
 All verified, all zero-consumer:
 
@@ -533,6 +589,8 @@ All verified, all zero-consumer:
 
 Sequence 4.2 **after** Phase 3 — `MapAdvanceReason` lives in `RunSceneHost.cs`,
 the same file the save fix edits. Do not have both in flight.
+
+</details>
 
 ---
 
