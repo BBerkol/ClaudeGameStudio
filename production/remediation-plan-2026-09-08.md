@@ -21,8 +21,37 @@ This is the ordered work list.
 | **3.2 + 3.3 Defects A + C** | **DONE** 2026-09-10 — Unity `80b05ac` (ClearRunState + threading), `56b7338` (clear-on-terminal wiring). Merged into ONE slice under the user's clear-on-terminal ruling; ~40% of §3.2 as written became unnecessary |
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
 | **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
-| 4.1 Beacon cleanup | **SCOPED, NOT STARTED** — no code written. TD verdict APPROVE-WITH-AMENDMENTS obtained 2026-09-10 (`production/td-verdicts/2026-09-10-phase-4-1-beacon-cleanup.md`), every plan claim re-verified, and the stated acceptance test **disproven by experiment** (replacement criteria in §4.1). Start at "Recommended sequence" step 1 in the verdict |
-| Phases 5–6 | not started. **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor |
+| **4.1 Beacon cleanup** | **DONE** 2026-09-11 — Unity `ca59184` (A: author + prose + roster), `0a4b450` (B: 4 scenes + 8 files + 4 build entries), `a8b769d` (C: A2 grep gates + A3 roster test). All three replacement acceptance criteria PASS. EditMode 1285/1284/0/1 (**new baseline**, +4 from A3), PlayMode 16/16 |
+| Phases 5–6 | not started. **Phase 4 is now CLOSED.** **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor. **Phase 4.1 adds one:** `Assets/Scenes/CombatScene.unity` is a separate orphan — referenced only by a comment at `BeaconActivator.cs:84`, still in build settings, deliberately not bundled into 4.1 |
+
+### Phase 4.1 outcome (2026-09-11)
+
+Ran as specified. Nothing in the plan text needed correcting this time — the
+2026-09-10 verdict had already absorbed every correction. Notes worth keeping:
+
+- **The replacement acceptance criteria are the right ones and all three
+  passed.** After Commit B, one `Author All Scenes` left `Assets/Scenes/Beacons/`
+  holding only `Combat.unity` — no `Haven.unity`, tracked or untracked.
+  `EditorBuildSettings.asset` and `BeaconSceneBinding.asset` both came back with
+  an EMPTY diff, which is stronger than the "still 3 entries" the criteria asked
+  for.
+- **The pre-existing idempotence churn reproduced exactly**, minus the deleted
+  file: 4 files (`ChopshopRoot.prefab`, `EventRoot.prefab`, `Beacons/Combat.unity`,
+  `RunScene.unity`) where the 2026-09-10 experiment saw 5. The missing one is
+  `Haven.unity`. Precise match — nothing new was introduced. Churn reverted; it
+  is not part of any 4.1 commit.
+- **A3 grew from 2 assertions to 4.** The verdict asked for the roster pairs and
+  the Haven throw. Two more earn their place: Mode↔ScenePath consistency (this
+  is what catches Commit B landing without Commit A — a roster entry aimed at a
+  deleted scene), and non-terminal emitter coverage across every shipping
+  `BiomeDistributionSO`. The latter encodes the verdict's own correction:
+  terminals are EXCLUDED, because a terminal latches its status before the
+  activator ever asks the SO to resolve.
+- **Every new gate proven to red on its bug**, not assumed: Haven re-added → 3
+  of 4 tests red; Rest entry removed → the 4th red; `AuthorBeaconStubScene` +
+  a `STUB-<Type>-DESIGN-ME` literal re-added → both grep gates fired, exit 1.
+- **EditMode baseline moves to 1285/1284/0/1.** The 1281 figure is now stale.
+  The single skip is still `StormPacingTuner_Test` `[Explicit]`.
 
 ### Phase 3 corrections to this plan
 
@@ -467,7 +496,11 @@ state — arguably good — or occlude it. Decide explicitly; do not let it land
 
 ## Phase 4 — Dead weight
 
-### 4.1 — Beacon cleanup (two commits, A then B)
+### 4.1 — Beacon cleanup — **DONE 2026-09-11, Unity `ca59184` + `0a4b450` + `a8b769d`**
+
+> Shipped as three commits, not two: A (author + prose + roster), B (deletions),
+> C (the A2 grep gates + A3 roster test, which the verdict called non-optional).
+> Outcome notes are in the Progress section above.
 
 Verified state: the Option B rollback is 4/5 done. Merchant/Chopshop/Event/Rest
 are PrefabRoot and wired. **Haven is still AdditiveScene pointing at a
