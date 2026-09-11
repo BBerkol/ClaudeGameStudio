@@ -22,7 +22,8 @@ This is the ordered work list.
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
 | **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
 | **4.1 Beacon cleanup** | **DONE** 2026-09-11 — Unity `ca59184` (A: author + prose + roster), `0a4b450` (B: 4 scenes + 8 files + 4 build entries), `a8b769d` (C: A2 grep gates + A3 roster test). All three replacement acceptance criteria PASS. EditMode 1285/1284/0/1 (**new baseline**, +4 from A3), PlayMode 16/16 |
-| Phases 5–6 | not started. **Phase 4 is now CLOSED.** **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor. **Phase 4.1 adds one:** `Assets/Scenes/CombatScene.unity` is a separate orphan — referenced only by a comment at `BeaconActivator.cs:84`, still in build settings, deliberately not bundled into 4.1 |
+| **5.1 BuildLegacy cluster** | **DONE** 2026-09-11 — Unity `72ec787` (A) + `93b56ed` (D) + `4f2e873` (B) + `b18326b` (C), net −724 lines. **7 shapes, not 3**; the real justification is ADR-0011 **#2 parallel storage**, not #3. EditMode **1287**/1286/0/1 (**new baseline**, +2 from the wiring test), PlayMode 16/16. **Blocking playtest OWED.** Spun out new **§5.4** (`BuildScout` — relocate, not delete) |
+| Phases 5.2–6 | not started. **Phase 4 is now CLOSED.** **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor. **Phase 4.1 adds one:** `Assets/Scenes/CombatScene.unity` is a separate orphan — referenced only by a comment at `BeaconActivator.cs:84`, still in build settings, deliberately not bundled into 4.1 |
 
 ### Phase 4.1 outcome (2026-09-11)
 
@@ -661,7 +662,81 @@ the same file the save fix edits. Do not have both in flight.
 
 ## Phase 5 — Structural debt
 
-### 5.1 — The `BuildLegacy` cluster (do before ADR-0014 P4)
+### 5.1 — The `BuildLegacy` cluster — **DONE 2026-09-11**
+
+> Unity `72ec787` (A) · `93b56ed` (D) · `4f2e873` (B) · `b18326b` (C).
+> Net −724 lines. EditMode **1287**/1286/0/1 (new baseline, +2 from the wiring
+> test), PlayMode 16/16, grep-gates clean, zero prefab churn.
+> **Blocking playtest still OWED** — see below.
+>
+> **The plan's sizing was wrong and so was its reasoning.** Not "25 occurrences
+> across 11 files" — **seven distinct shapes**, three of which neither the plan
+> nor the initial scout found (`BuffStripWidget.BuildIcon`/`WireLegacyRefs`,
+> `CombatHud.BuildDamagePopups`, `EnsureCrosshair`), plus a seventh public
+> factory (`BuffTooltipWidget.Spawn`). Two of the three were *public API* —
+> deleting the bodies without them would have converted ADR-0011 #3 into #6,
+> leaving the violation count unchanged.
+>
+> **The real justification is #2, not #3.** `CombatPrefabAuthor` stated the
+> invariant outright: author literals and `BuildLegacy` literals were maintained
+> to "produce numerically identical UI" — two copies of one visual spec, i.e.
+> **parallel storage**. That, not "P4 deletes them anyway", is why this belonged
+> before P4: P4's capture had to read every authored value twice and reconcile,
+> and the second copy had already drifted.
+>
+> **Commit order changed during execution.** D ran before B: `ResourceBarWidget`
+> still carried a `BuildLegacy` body, so B's grep gate would have shipped with an
+> exclusion — and an exclusion inside a gate is itself a bridge.
+>
+> **`RunSceneHost.BuildScout` is NOT this shape** — it is the EditMode suite's
+> vehicle factory (20 fixtures depend on the unwired condition;
+> `ScoutFallback_PartIdParity_Test` reflects in to pin it). It needs relocating,
+> not deleting → **new §5.4**.
+
+#### 5.1 findings worth keeping
+
+- **A phantom citation seeded a whole family of defects.** `AuthorBuffStrip`'s
+  log-and-continue was justified as "matches the precedent in `BuildSlotColumn`".
+  **No such method exists anywhere in `Assets/`** — the only hit is the citation.
+  The same shape had been copied to eight further guards in `AuthorRun`. A
+  dangling citation manufactures authority; treat all nine as one lineage.
+- **The right severity axis is "does the degradation announce itself?", not
+  appearance-vs-behaviour.** A null vehicle asset is loud (warning + unwinnable
+  deck). A wrong `sortingOrder` is silent: the game-over overlay renders *below*
+  MapView, leaving a possibly-invisible modal eating input — the
+  pending-offer-gate failure class, which reads as a hang.
+- **Abort before the first write.** The first draft of the fix aborted *after*
+  `AuthorBeaconSceneBinding()` had already rewritten `BeaconSceneBinding.asset`
+  (the Phase 4.1 acceptance asset) and after an empty PartRewardPool could be
+  created. `AuthorRun` is now ordered reads-then-guards-then-abort-then-writes.
+  Not having a side effect beats disclosing one.
+- **Hand-audit orphans; never ref-count them.** `EnergyOrbWidget`'s
+  `FullBgColor`/`FullTextColor` are used inside the deleted body *and* in
+  `Update`. A ref-count sweep would have deleted live code.
+- **Unused `using`s emit no warning.** `BuffStripWidget` kept dead `TMPro` /
+  `UnityEngine.UI` imports through a fully green suite.
+- **Two comments were wrong in the opposite direction** — live code described as
+  legacy. `PileChip.prefab` carries no Button or CanvasGroup at all, so
+  `EnsureClickable`'s AddComponent branches are the live path. That is *not*
+  ADR-0011 #3: one path, not two.
+- **Verify orphan claims by script GUID, not by name.** A name grep for
+  `ResourceBarWidget` also matched `SlotTargetRing.prefab`, which carries its own
+  unrelated `_fillImage` under a different GUID.
+
+#### OWED — blocking playtest (TD raised this above the standards table's ADVISORY tier for UI)
+
+One combat exercising every deleted fallback's live counterpart: cards render ·
+pile chips count, roll, and **open on click** · energy readout tints at 0 ·
+turn banner recolours per phase · damage numbers rise · End Turn retints ·
+**status effect applied and its icon hovered** (the highest-risk row — the only
+fallback that was genuinely reachable) · victory/defeat banner. Watch the
+console: an unwired ref now logs a named error instead of self-healing. The
+`[AMBUSH]` banner needs `RunSceneHost.EncounterSelection` set and may be skipped
+— record it as untested rather than passed.
+
+#### Original plan text (superseded, kept for the record)
+
+### ~~5.1 — The `BuildLegacy` cluster (do before ADR-0014 P4)~~
 
 **25 occurrences across 11 files** in runtime `Assets/Scripts` (not editor, so
 ADR-0011 exception #3 does not apply). Every combat widget carries
@@ -712,6 +787,43 @@ Zero hits. ADR-0017 declares it a Phase 2.5 commitment with `Blocks: All of
 Phase 2.5`. Any bodywork or chassis-2/3 work stalls here. `SlotKind.Bodywork`
 exists (`SlotKind.cs:64`, handled at `DamagePipeline.cs:116`) but zero slots are
 authored, which is why the garage BODYWORK panel is empty.
+
+### 5.4 — `BuildScout` / `_playerVehicleAsset` fallback retirement (NEW, from 5.1)
+
+Found during 5.1 and deliberately **excluded** from it. `RunSceneHost.BuildScout`
+looks like the `BuildLegacy` shape and is not: it is **the EditMode suite's
+vehicle factory living in production code**. `RunSceneHost.cs:667-670` records
+that **20 fixtures** depend on the unwired condition, and
+`ScoutFallback_PartIdParity_Test:157-168` reflects into it and asserts it exists —
+a test added 2026-08-05 to pin a real `scout_machinegun` / `scout_machine_gun`
+divergence. There is also a prior TD ruling at `VehicleSwapPartTests.cs:151`.
+
+**The distinction that matters:** `BuildScout` is a second construction path that
+is *tested, pinned, and proven at parity*. The `BuildLegacy` copies had no test,
+no gate, and nothing forcing them to track the author script. A maintained second
+path is not the same object as an unmaintained one.
+
+**So the remedy is relocation, not deletion** — move the factory to a
+test-visible seam or an SO the fixtures load, then delete the three real value
+divergences:
+
+| Site | Diverges on |
+|---|---|
+| `RunSceneHost.cs:653-656` | `ChassisCards` vs `RunDeck.Milestone1Starter()` |
+| `RunSceneHost.cs:1488-1489` | `TankCapacity` vs `SCOUT_TANK_CAPACITY_FALLBACK = 35` |
+| `RunSceneHost.cs:1528-1529` | `FuelBurnMultiplier` vs `SCOUT_FUEL_BURN_MULTIPLIER_FALLBACK = 0.7f` |
+
+Note `:669-686` is **not** a fourth: both arms only log (`LogError` vs
+`LogWarning`) and `StartRun` runs identically — it is a severity selector on a
+diagnostic, not a behavioural branch.
+
+**Containment already shipped in 5.1 Commit A:** `AuthorRun` now aborts rather
+than saving `Run.prefab` with `_playerVehicleAsset` unwired, and
+`CombatWidgetPrefabWiring_Test` has no row for it yet — **add
+`(Run.prefab, RunSceneHost, _playerVehicleAsset)`** when this slice starts, so
+the fallback cannot silently go live in the interim.
+
+Not P4 scope, so no ordering pressure. Sequence independently.
 
 ---
 
