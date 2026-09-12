@@ -862,6 +862,112 @@ Phase 2.5`. Any bodywork or chassis-2/3 work stalls here. `SlotKind.Bodywork`
 exists (`SlotKind.cs:64`, handled at `DamagePipeline.cs:116`) but zero slots are
 authored, which is why the garage BODYWORK panel is empty.
 
+### 5.5 — Targeting UX rework (NEW, 2026-09-12) — design SETTLED, step 1 SHIPPED
+
+Came out of the Phase 5.1 playtest. Owner-settled after two technical-director
+consultations and two ux-designer reviews. **Every claim below was verified
+against code; the reviews' two biggest assertions did not survive and are
+recorded as such.**
+
+#### The shape — three surfaces, three jobs, no overlap
+
+- **Idle** — vehicle art is INERT (no raycast, no tooltip). Rings are the
+  primary info surface; hovering a RING gives full part info. Bars, badges and
+  buff strips behave as today.
+- **Targeting** — part art becomes targetable; hovering it highlights the paired
+  ring (already wired, `VehicleBarStack:578`). Rings stay minimal: number +
+  colour only.
+- **Player intent panel, above the player vehicle** — mirrors the enemy
+  `IntentWidget`. **Not merely a targeting readout.** Lifecycle: a "formulating"
+  icon during the player's turn while they decide → target readout (name +
+  hp/maxHp + projected damage) while a card is dragged over a target → the
+  **decided intent** once committed. The player-side counterpart to enemy
+  intent. That lifecycle also closes the discoverability gap, because the panel
+  exists *before* the drag rather than appearing only once you commit.
+
+#### Forward spec (owner, 2026-09-12) — not yet buildable
+
+Status effects on attacks do not exist in the game yet. When they land:
+
+- The **player intent panel** is where a pending attack's status effects are
+  described — numbers, text and colour. The panel was chosen partly because it
+  has room to grow this way; a 40px ring never would.
+- Once a status is **applied** to a part, its icon shows **adjacent to that
+  part's ring** — beside the disc, not inside it.
+
+This gives the ring a defined growth path and keeps the disc itself at number +
+colour permanently.
+
+#### Rejected / banked
+
+- **Arc + glyph + hatch ring redesign** (ux-designer) — **banked**, not used.
+  Owner wants simplicity.
+- **Crosshair carrying the projected number** — **rejected**. Carries no maxHp
+  and the owner dislikes it visually. One surface, not two.
+- **Whole-board "runway lights"** for valid targets — **dropped**, premised on a
+  bug that does not exist (below).
+- **Hiding the ring while its part is hovered** — rejected: ring and hit zone
+  are non-coincident rects, so the swap guarantees a seam where neither contains
+  the cursor, and it removes the readout at the moment of interest.
+
+**Accepted cost, stated twice by the owner:** the panel is not in the eye-travel
+path — you aim at the enemy while the readout sits above your own vehicle. It
+lands on **Attack**, the frequent path; Repair gets it free because the readout
+sits above the vehicle being repaired. Do not re-raise without playtest evidence.
+
+#### Review claims that did NOT survive verification
+
+- **"Targeting is pixel-perfect and the rework threatens it."** False. Drag
+  resolution is `RectTransformUtility.RectangleContainsScreenPoint` against a
+  bounding rect (`CombatHud.cs:1259`; confirmed again by the comment at
+  `VehicleBarStack:591-595`). The alpha-silhouette mask only ever governed the
+  IDLE raycast — the path being switched off.
+- **"A repair card with nothing broken silently accepts nothing"** — ranked the
+  ux-designer's #1 must-fix, twice. Unreachable.
+  `RepairEffect.GetStructuralFailureReason` (`CardEffect.cs:201-204`) returns
+  `"no subsystem is offline"`, which greys the card, and `CardWidget.cs:505/533`
+  early-return on `!IsPlayable`, so the drag cannot begin. **The real residual is
+  tiny:** the model already computes that reason string and the view never shows
+  it. Surface it on the dimmed card.
+
+#### Adjacent findings (own slices)
+
+- **`HideOnFullUnlessAttackActive` is effectively dead.** `ResolveHideRule`
+  (`:892-897`) only returns `AlwaysVisible` or `HideOnFullOrDestroyed`, yet that
+  case is the serialized default (`SlotTargetRing.cs:85`), is implemented
+  (`:194`), is tested, and five `VehicleBarStack` comments describe it as live.
+  ADR-0011 vestigial-enum question.
+- **ADR-0014's P5 gate cannot ship as written.** It forbids `Canvas` outside the
+  `Popups` subtree; four ship outside it today — `IntentCanvas` (5),
+  `HitZonesCanvas` (15), `BuffStripCanvas` (22), `CardHand` (25). TD ruling: the
+  ADR named one *instance* where it meant the *axis* (it already says the split
+  is "axis-aligned — world-space vs screen-space"). Amend to a **world-space
+  vehicle-anchored canvas category** with a membership predicate and an exit
+  criterion. Members: `Popups`, `HitZonesCanvas`, `IntentCanvas`,
+  `TargetingReadoutCanvas` — nothing else. `BarStackCanvas` / `BuffStripCanvas` /
+  `CardHand` are screen-space-equivalent and stay P4 scope.
+
+#### Build order (TD-approved)
+
+| # | Step | State |
+|---|---|---|
+| 1 | `VehicleBarStack:396` guard deletion + PlayMode regression test | **DONE 2026-09-12** — Unity `f8b1df6`. Verdict `td-verdicts/2026-09-12-vehiclebarstack-396-hitzone-refresh.md`. **Playtest owed** (enemy zones go inert during a repair drag) |
+| 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | not started — behaviour-neutral in idle, survives P4 verbatim |
+| 3 | ADR-0014 amendment — the canvas category above | not started, gates step 4's timing |
+| 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
+| 5 | **P4** — flip gate to targeting-only, delete zone tooltip plumbing (~60 lines + dead `\|\| _combatTooltip != null` at `:934` + reversed-Q1 prose in 3 files), idle info → ring hover, land `SlotReadout`, retire badge self-poll | not started |
+| 6 | **P4 close** — P5 predicate gate written against the amended category | not started |
+
+Step 4 reads `AttackStateController.IncomingDamage` + `DamagePipeline.PreviewDamage`
+**directly**, not via `SlotReadout` — the panel is a singleton showing one slot
+while `SlotReadout` is a per-slot broadcast, so routing it through would invert
+the data flow. `LateUpdate` poll, no new event surface. Hang refresh off the
+existing transition gate at `CombatHud:1198` and **hold-and-dim** on gaps; a
+naive per-frame rebuild flickers as the cursor crosses part seams.
+
+**Step 5 commit-boundary requirement:** the gate flip and ring-hover idle info
+must land in the SAME commit, or idle per-part info goes dark mid-slice.
+
 ### 5.4 — `BuildScout` / `_playerVehicleAsset` fallback retirement (NEW, from 5.1)
 
 Found during 5.1 and deliberately **excluded** from it. `RunSceneHost.BuildScout`
