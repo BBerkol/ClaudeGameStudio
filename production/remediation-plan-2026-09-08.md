@@ -22,7 +22,7 @@ This is the ordered work list.
 | **3.3 trace (owed)** | **DONE** — defeat writes NOTHING; last bytes are the pre-fight arrival snapshot, so a loss was a free refight. Permadeath was Alt+F4-bypassable |
 | **4.2 Pure deletions** | **DONE** 2026-09-10 — Unity `f832359`, net −164 lines. Plan text was wrong in 5 places; corrected in §4.2 with the original preserved |
 | **4.1 Beacon cleanup** | **DONE** 2026-09-11 — Unity `ca59184` (A: author + prose + roster), `0a4b450` (B: 4 scenes + 8 files + 4 build entries), `a8b769d` (C: A2 grep gates + A3 roster test). All three replacement acceptance criteria PASS. EditMode 1285/1284/0/1 (**new baseline**, +4 from A3), PlayMode 16/16 |
-| **5.1 BuildLegacy cluster** | **DONE** 2026-09-11 — Unity `72ec787` (A) + `93b56ed` (D) + `4f2e873` (B) + `b18326b` (C), net −724 lines. **7 shapes, not 3**; the real justification is ADR-0011 **#2 parallel storage**, not #3. EditMode **1287**/1286/0/1 (**new baseline**, +2 from the wiring test), PlayMode 16/16. **Blocking playtest OWED.** Spun out new **§5.4** (`BuildScout` — relocate, not delete) |
+| **5.1 BuildLegacy cluster** | **DONE** 2026-09-11 — Unity `72ec787` (A) + `93b56ed` (D) + `4f2e873` (B) + `b18326b` (C), net −724 lines. **7 shapes, not 3**; the real justification is ADR-0011 **#2 parallel storage**, not #3. EditMode **1287**/1286/0/1 (**new baseline**, +2 from the wiring test), PlayMode 16/16. **Playtest PASSED 2026-09-12 — no regression**, proven by diff; it surfaced two *pre-existing* defects with a shared root cause, fixed in the same session (see **§5.1a**). Spun out new **§5.4** (`BuildScout` — relocate, not delete) |
 | Phases 5.2–6 | not started. **Phase 4 is now CLOSED.** **Phase 5 gained two items from 4.2** — `AdvanceReason` + `BeaconTransition.Reason` (4-layer signature change), and `BeaconTravelTick`'s 10-arg positional ctor. **Phase 4.1 adds one:** `Assets/Scenes/CombatScene.unity` is a separate orphan — referenced only by a comment at `BeaconActivator.cs:84`, still in build settings, deliberately not bundled into 4.1 |
 
 ### Phase 4.1 outcome (2026-09-11)
@@ -733,6 +733,80 @@ fallback that was genuinely reachable) · victory/defeat banner. Watch the
 console: an unwired ref now logs a named error instead of self-healing. The
 `[AMBUSH]` banner needs `RunSceneHost.EncounterSelection` set and may be skipped
 — record it as untested rather than passed.
+
+### 5.1a — Playtest outcome + the `overrideSorting` defect — **DONE 2026-09-12**
+
+**The playtest PASSED.** Neither defect it found is a 5.1 regression, and that
+was proven by diff rather than assumed:
+
+- **Cards.** The deleted `handCanvas.overrideSorting = true; sortingOrder = 25;`
+  lived inside the `if (_cards.Length == 0)` bootstrap branch, whose own comment
+  read *"Legacy fallback path only — the authored Combat.prefab carries this by
+  construction."* On the authored path it never ran, before or after.
+- **Tooltip.** The deleted `BuffTooltipWidget.Spawn` sat behind
+  `if (_buffTooltip == null)`; that field is a required row in
+  `CombatWidgetPrefabWiring_Test`, so the branch was unreachable. The surviving
+  `else if` reparent branch is byte-identical pre- and post-5.1.
+
+Rows that passed live: pile chip opens on click, energy readout reddens at 0,
+damage numbers appear. Status-effect *application* could not be exercised —
+no card grants one yet — so the buff row was reached via an existing
+FlameBarrier instead. `[AMBUSH]` remains **UNTESTED**.
+
+#### The defect it did surface — one cause, two symptoms
+
+`Canvas.overrideSorting` was assigned while the GameObject was **inactive**, and
+does not persist; `sortingOrder`, written in the same block, does. That
+asymmetry is what made it invisible — the prefab looked right.
+
+| Site | Author code | Was on disk |
+|---|---|---|
+| CardHand (`CombatPrefabAuthor.cs:3609`→`:3625`) | `SetActive(false)` then `overrideSorting = true`, `sortingOrder = 25` | `m_OverrideSorting: 0`, `m_SortingOrder: 25` |
+| BuffStripCanvas (`:1094`→`:1104`) | `SetActive(false)` then `overrideSorting = true`, `sortingOrder = 22` | `m_OverrideSorting: 0`, `m_SortingOrder: 22` |
+
+**Zero prefabs project-wide carried `m_OverrideSorting: 1`.** A nested Canvas
+ignores its `sortingOrder` unless the flag is on, so:
+
+- CardHand (verified nested under `Combat_HUD`, parent GO `6552448530280038589`)
+  rendered at **10** and fell behind the vehicle `HitZonesCanvas` at **15**.
+- BuffStripCanvas lost the chip raycast to the parent `BarStackCanvas`, so the
+  HP bar absorbed the pointer, `BuffIconWidget.OnPointerEnter` never fired, and
+  `BuffTooltipWidget.Show` was never called. The tooltip widget itself is sound.
+
+**Why it survived two months.** `PatchCardHandCanvasMenu` (`:3372`) is a
+2026-07-06 hotfix written for exactly this, which logs
+`"Patched CardHand … overrideSorting=true"` on success and left the prefab
+untouched. Meanwhile `CombatHud.cs:1467` asserted *"the overrideSorting=25
+nested canvas"* as fact. Same phantom-citation family §5.1 itself flagged.
+
+#### Fix shipped
+
+1. Two surgical YAML flips, `m_OverrideSorting: 0 → 1` — `CombatHud.prefab`
+   Canvas `&3615108685937019552`, `MainBar.prefab` Canvas `&577952370169777220`.
+   Exactly 2 changed lines, zero fileID churn. Chosen over the existing patch
+   menu deliberately: that menu ends in `SaveAsPrefabAsset`, a whole-prefab
+   rewrite, and `project_author_scenes_never_idempotent` records what those
+   round-trips do. Both canvases already carried a `GraphicRaycaster`, so
+   enabling the flag cannot orphan input.
+2. Author reordered at both sites — Canvas configured while the GO is still
+   active, `SetActive(false)` moved after it and before any child lands.
+3. `override_sorting_gate` in `tools/ci/grep-gates.sh` — a **positive**
+   assertion (fires on absence, unlike `gate()`), anchored by Canvas fileID so a
+   reminted id fails loudly instead of passing vacuously. Both failure modes
+   negative-tested: flag flipped to 0 → fires with the right message; anchor
+   renamed → fires "not found". This is the load-bearing enforcement, since
+   `UNITY_LICENSE` is unset and the EditMode job skips in CI.
+
+Capture: `production/polish-captures/2026-09-12-overridesorting-restoration.md`.
+
+**Owed:** a confirming playtest — cards should now sit above the target rings,
+and hovering a buff icon should produce a tooltip. Both are one-look checks.
+
+**Follow-up not taken (needs a decision):** `PatchCardHandCanvasMenu` is now
+redundant — the author does it correctly and the prefab is fixed. It is a menu
+that historically no-opped while logging success. Deleting it is the
+`feedback_aggressive_dead_code_cleanup` call; it was left alone because it sits
+outside the approved scope of this slice.
 
 #### Original plan text (superseded, kept for the record)
 
