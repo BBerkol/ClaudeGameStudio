@@ -951,7 +951,7 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
 
 | # | Step | State |
 |---|---|---|
-| 1 | `VehicleBarStack:396` guard deletion + PlayMode regression test | **DONE 2026-09-12** — Unity `f8b1df6`. Verdict `td-verdicts/2026-09-12-vehiclebarstack-396-hitzone-refresh.md`. **Playtest owed** (enemy zones go inert during a repair drag) |
+| 1 | `VehicleBarStack:396` guard deletion + PlayMode regression test | **DONE + PLAYTESTED 2026-09-12** — Unity `f8b1df6`. Verdict `td-verdicts/2026-09-12-vehiclebarstack-396-hitzone-refresh.md`. All three criteria confirmed on screen: enemy zones go inert during a repair drag · enemy markers read `Name  cur/max` · enemy hit areas track damage-state sprite swaps |
 | 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | not started — behaviour-neutral in idle, survives P4 verbatim |
 | 3 | ADR-0014 amendment — the canvas category above | not started, gates step 4's timing |
 | 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
@@ -967,6 +967,13 @@ naive per-frame rebuild flickers as the cursor crosses part seams.
 
 **Step 5 commit-boundary requirement:** the gate flip and ring-hover idle info
 must land in the SAME commit, or idle per-part info goes dark mid-slice.
+
+**Expected-but-not-yet-true until step 5, so nobody re-reports it as a defect:**
+idle hover over the vehicle art STILL shows tooltips today. That is the current
+shipped behaviour and it is deliberately untouched by steps 1–4. Confirmed
+observed 2026-09-12 after step 1; not a regression, not a miss. The art goes
+inert only when the gate flips, and the gate flips only alongside ring-hover
+info — precisely so per-part information is never homeless for a commit.
 
 ### 5.4 — `BuildScout` / `_playerVehicleAsset` fallback retirement (NEW, from 5.1)
 
