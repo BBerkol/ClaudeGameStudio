@@ -952,11 +952,28 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
 | # | Step | State |
 |---|---|---|
 | 1 | `VehicleBarStack:396` guard deletion + PlayMode regression test | **DONE + PLAYTESTED 2026-09-12** — Unity `f8b1df6`. Verdict `td-verdicts/2026-09-12-vehiclebarstack-396-hitzone-refresh.md`. All three criteria confirmed on screen: enemy zones go inert during a repair drag · enemy markers read `Name  cur/max` · enemy hit areas track damage-state sprite swaps |
-| 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | not started — behaviour-neutral in idle, survives P4 verbatim |
+| 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | **DONE 2026-09-12** — Unity `6b0e743`. Behaviour-neutral (no playtest owed). `ApplyZonesLive` is the sole writer of that canvas's ACTIVE state — verified repo-wide; the other two consumers write `worldCamera` only. **Step 5 flips the system by editing one expression: `bool zonesLive = !hideOpposite;`** |
 | 3 | ADR-0014 amendment — the canvas category above | not started, gates step 4's timing |
 | 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
 | 5 | **P4** — flip gate to targeting-only, delete zone tooltip plumbing (~60 lines + dead `\|\| _combatTooltip != null` at `:934` + reversed-Q1 prose in 3 files), idle info → ring hover, land `SlotReadout`, retire badge self-poll | not started |
 | 6 | **P4 close** — P5 predicate gate written against the amended category | not started |
+
+**Two verdict deviations taken in step 2, and why — do not "correct" them back:**
+
+1. The verdict's code sketch was `zonesLive = IsActive && !IsOppositeSide(...)`,
+   which is **false in idle** — i.e. the step-5 gate flip, not the
+   behaviour-neutral consolidation step 2 was specified as. Its prose
+   ("behaviour-neutral in idle") was the binding half; the sketch was not.
+2. It asked for an edge-trigger against a cached bool. `activeSelf` already IS
+   that edge and is **self-correcting**; `_combatVisual` is replaced on every
+   vehicle swap, so a predicate-keyed cache would suppress the first write to a
+   freshly-swapped canvas and strand it in the previous vehicle's state.
+
+**Verification trap hit on the way, worth not repeating:** the first step-2 test
+run reported "no results XML" with an `error CS` count of **0** — the Editor was
+open, so nothing compiled at all while both the exit code and the error count
+read clean. The XML-present check is the only one that catches this. See
+[[project_unity_batchmode_no_quit]].
 
 Step 4 reads `AttackStateController.IncomingDamage` + `DamagePipeline.PreviewDamage`
 **directly**, not via `SlotReadout` — the panel is a singleton showing one slot
