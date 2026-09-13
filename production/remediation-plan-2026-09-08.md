@@ -937,15 +937,22 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
   case is the serialized default (`SlotTargetRing.cs:85`), is implemented
   (`:194`), is tested, and five `VehicleBarStack` comments describe it as live.
   ADR-0011 vestigial-enum question.
-- **ADR-0014's P5 gate cannot ship as written.** It forbids `Canvas` outside the
-  `Popups` subtree; four ship outside it today — `IntentCanvas` (5),
-  `HitZonesCanvas` (15), `BuffStripCanvas` (22), `CardHand` (25). TD ruling: the
-  ADR named one *instance* where it meant the *axis* (it already says the split
-  is "axis-aligned — world-space vs screen-space"). Amend to a **world-space
-  vehicle-anchored canvas category** with a membership predicate and an exit
-  criterion. Members: `Popups`, `HitZonesCanvas`, `IntentCanvas`,
-  `TargetingReadoutCanvas` — nothing else. `BarStackCanvas` / `BuffStripCanvas` /
-  `CardHand` are screen-space-equivalent and stay P4 scope.
+- **ADR-0014 SUPERSEDED by ADR-0018 (2026-09-13).** Its P5 gate could not ship:
+  it forbids `Canvas` outside the `Popups` subtree and **13 of 14** shipping
+  canvases are outside it. The full canvas audit — every `Canvas` in
+  `Assets/Prefabs` + `Assets/Scenes`, read from YAML — is reproduced in
+  ADR-0018's Context table. Beyond the original `Popups` finding it disproved
+  four more claims: the performance rationale is self-refuting for its own
+  example, the Current State inventory omits 11 canvases, "zero UXML, zero USS"
+  is now 18 and 22, and the no-new-Canvas rule was never enforceable.
+  **Both obvious replacement predicates fail in opposite directions** — a
+  render-mode rule excludes `Popups` and catches `CardHand` (inert nested mode
+  2); a vehicle-parentage rule catches `HudAnchors`, which hosts MainBar and the
+  rings and is the single largest P4 surface. So P5 becomes a **registry**, not
+  a predicate: `Popups`, `HitZonesCanvas`, `IntentCanvas`,
+  `TargetingReadoutCanvas`, each with an exit criterion, capped at 5 members
+  before the category must be re-derived. `DamagePopupCanvas` was found during
+  the audit and deliberately left OUT pending a determination.
 
 #### Build order (TD-approved)
 
@@ -953,7 +960,7 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
 |---|---|---|
 | 1 | `VehicleBarStack:396` guard deletion + PlayMode regression test | **DONE + PLAYTESTED 2026-09-12** — Unity `f8b1df6`. Verdict `td-verdicts/2026-09-12-vehiclebarstack-396-hitzone-refresh.md`. All three criteria confirmed on screen: enemy zones go inert during a repair drag · enemy markers read `Name  cur/max` · enemy hit areas track damage-state sprite swaps |
 | 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | **DONE 2026-09-12** — Unity `6b0e743`. Behaviour-neutral (no playtest owed). `ApplyZonesLive` is the sole writer of that canvas's ACTIVE state — verified repo-wide; the other two consumers write `worldCamera` only. **Step 5 flips the system by editing one expression: `bool zonesLive = !hideOpposite;`** |
-| 3 | ADR-0014 amendment — the canvas category above | not started, gates step 4's timing |
+| 3 | ~~ADR-0014 amendment~~ → **ADR-0018 superseding ADR-0014** | **DONE 2026-09-13.** Escalated from amendment to supersession: the false premise sits in ADR-0014's title, summary, decision, diagram, rationale AND consequences. The gating canvas audit found **four more** false claims beyond the original `Popups` one — see below. Capture: `polish-captures/2026-09-13-adr-0014-supersession.md` |
 | 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
 | 5 | **P4** — flip gate to targeting-only, delete zone tooltip plumbing (~60 lines + dead `\|\| _combatTooltip != null` at `:934` + reversed-Q1 prose in 3 files), idle info → ring hover, land `SlotReadout`, retire badge self-poll | not started |
 | 6 | **P4 close** — P5 predicate gate written against the amended category | not started |

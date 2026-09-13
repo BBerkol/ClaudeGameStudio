@@ -2,7 +2,25 @@
 
 ## Status
 
-Accepted (2026-06-13)
+**Superseded (2026-09-13) by
+[ADR-0018 — UGUI Retention for Transient World-Anchored Annotations](adr-0018-ugui-retention-transient-world-anchored-annotations.md).**
+
+Accepted 2026-06-13. Superseded because this document's central premise — that
+the retained `Popups` canvas is **world-space** — is false. `Popups` is
+`m_RenderMode: 1` (ScreenSpaceCamera) and `CombatHud.ApplyScreenSpaceCamera`
+forces it there on every HUD build. That premise appears in this document's
+title, summary, decision, diagram, performance rationale and consequences, so it
+was replaced rather than amended.
+
+**The body below is preserved unedited**, deliberately — it is the record of
+what was believed, and P3's landed migration detail lives here. Five further
+claims were disproven by the 2026-09-13 canvas audit; all six are enumerated
+with their verification in ADR-0018's Context section and in
+`production/polish-captures/2026-09-13-adr-0014-supersession.md`.
+
+**Do not cite this document as current policy.** UI Toolkit remains the primary
+stack — that part was always right — but which canvases stay UGUI, and why, is
+now governed by ADR-0018.
 
 ## Date
 
