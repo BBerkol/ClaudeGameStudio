@@ -239,7 +239,287 @@ rotation tighten around the actual cards as the hand shrinks.
 Plus an anti-stall safety timeout (2× anim duration, 1.5s floor) that logs and
 continues draining rather than wedging the pipeline.
 
+---
+
+## 7c2 — the migration itself
+
+### Slice plan divergence: 7d folds into 7c2, three commits not four
+
+The plan above split `7c` (the element) from `7d` (retire `Card.prefab`, its
+author method, test rows). **That boundary cannot hold, and the reason is
+mechanical rather than a preference.** `CardWidget` hard-references
+`HandLayoutEngine.ComputeSlotTransform` and `HandLayoutEngine.ApplyZOrderForWidget(CardWidget, …)`
+— the circular dependency 7b explicitly recorded as 7c's problem. The moment
+`HandLayoutEngine` moves to `WastelandRun.UI` and sheds its element operations,
+`CardWidget.cs` no longer compiles. It cannot be left standing for one commit.
+
+And leaving the authored `CardHand` subtree in `CombatHud.prefab` while the new
+UI Toolkit hand renders would put **two hands on screen at once** — the
+intermediate state would not be playable, which is the property the 7a/7b/7c1
+split was bought to preserve. So 7c2 carries the whole cut: new element, pipeline
+move, UGUI hand deleted, prefab subtree excised, author methods and test rows
+gone. There is nothing left for a 7d.
+
+### Files touched
+
+New:
+
+- `Assets/Scripts/UI/CardHandElement.cs` — one pooled hand slot as a `VisualElement`
+- `Assets/Scripts/UI/CardHandView.cs` — the pool, the z-order single writer, the per-frame tick
+- `Assets/UI/CardHandCard.uxml` — the card's inner slot tree (body + four labels)
+
+Moved `WastelandRun.CombatView` → `WastelandRun.UI` (via `git mv`, history follows):
+
+- `Assets/Scripts/UI/HandLayoutEngine.cs` — **sheds three methods**; see below
+- `Assets/Scripts/UI/HandBeat.cs`
+- `Assets/Scripts/UI/HandSequencer.cs`
+- `Assets/Scripts/UI/HandEventQueue.cs`
+- `Assets/Scripts/UI/HandModelObserver.cs`
+- `Assets/Scripts/UI/HandEvent.cs`
+
+Edited:
+
+- `Assets/Scripts/UI/CombatHudPanelController.cs` — hosts the pipeline + coroutines
+- `Assets/Scripts/CombatView/CombatHud.cs` — hand ownership leaves
+- `Assets/Editor/CombatPrefabAuthor.cs` — `AuthorCard`, `BuildCardLine`, the
+  `CardHand` build block, `PatchCardHandCanvasMenu`, `_cards` / `_cardPrefab` wiring
+- `Assets/Editor/AuthorCombatHudPanel.cs` — wires `_handCardTemplate`
+- `Assets/Prefabs/CombatView/CombatHud.prefab` — `CardHand` subtree excised
+- `Assets/Prefabs/UI/CombatHudPanel.prefab` — `_handCardTemplate` ref added
+- `Assets/UI/CombatHudPanel.uxml` / `.uss` — the hand layer
+- `Assets/UI/Tokens/tokens.colors.uss`, `Assets/Scripts/UI/CardImageRefs.cs`,
+  `Assets/Scripts/Combat/CombatLoop.cs`,
+  `Assets/Tests/EditMode/Combat/CardPlayabilityPendingTargetTests.cs` — stale
+  `CardWidget` citations retargeted (they become phantoms the moment the type dies)
+- `Assets/Tests/EditMode/CombatView/CombatWidgetPrefabWiring_Test.cs` — 7 rows removed
+- `Assets/Tests/EditMode/Combat/HandObserverQueueDeterminismTests.cs` → moved to
+  `Assets/Tests/EditMode/UI/` (its subjects are `WastelandRun.UI` types now, and
+  `WastelandRun.Combat.Tests` does not reference that assembly)
+
+Deleted:
+
+- `Assets/Scripts/CombatView/CardWidget.cs` — 833 lines, ported to `CardHandElement`
+- `Assets/Prefabs/CombatView/Card.prefab` — its authored values are in this file
+  and land in USS
+
+### Authored values destroyed by 7c2
+
+Every value in the **Constants inventory** and the **`Card.prefab`** /
+**`HandLayoutEngine`** / **`HandBeat`** tables above is destroyed by this commit.
+That inventory was written into this file at 7b time for exactly this moment and
+is not repeated here. Where each one lands:
+
+| Source | Destination |
+|---|---|
+| `Card.prefab` root 208 × 351 | `--wr-size-handcard-*` (already split in 7c1) |
+| Cost / Value / Name / Info offsets, sizes, fonts | `.wr-handcard__*` in `CombatHudPanel.uss`, with the 1.3× bake note verbatim |
+| Cost / Value / Name / Info colours | already tokens (`--wr-color-card-*`) — verified equal to the floats |
+| background white | USS comment on `.wr-handcard`; the tint is multiplicative |
+| `PlayableTint` / `UnplayableTint` | `.wr-handcard` / `.wr-handcard.is-unplayable` |
+| `HiddenColor` | replaced by `visibility: hidden` — see below |
+| `HoverLiftPx` **100** ↔ `IdleDropOffsetY` **−100** | **adjacent**, `CardHandElement` field next to the engine constant's citation, "change both together" intact |
+| `LerpSpeed` 12, `SlideInStartX` −1200 | `CardHandElement` documented consts |
+| `_castEngageLiftPx` **120** ↔ `_castCommitLiftPx` **200** | **adjacent** serialized fields on `CardHandView`, hysteresis rationale verbatim |
+| `CancelBopMinLiftPx` 30, `CancelFadeStartAlpha` 0.4, `CancelFadePerSecond` 6 | `CardHandElement` consts |
+| `ProjectedUpHex` / `ProjectedDownHex` | `.wr-handcard__value.is-up` / `.is-down` — **no rich text** |
+| `HandCapacity` 8, `CardSpacingPx` 180, `CardArcHeightPx` 35, `CardArcRotationDeg` 3 | unchanged on `HandLayoutEngine` |
+| `CardAnimDurationSec` 0.25, `HandBeatStaggerSec` 0.05, `ReflowSettleSec` 0.2, `PipelineAwaitTimeoutSec` 1.5 | unchanged on `HandBeat` |
+| hand rect: `CardHandYPx` −80, `HandWidthPx` 1280, `HandHeightPx` 390 | `.wr-cardhand` layer geometry in USS |
+| `CardHand` canvas `overrideSorting` / `sortingOrder 25` | **dies with UGUI.** In one tree, "above the vehicle bars" is being a later child; there is no sorting order to keep in sync and `PatchCardHandCanvasMenu` has nothing left to patch |
+
+Three values in `CombatHud` also die, and they are worth naming because they were
+a *re-derivation* rather than a source: `PileChipEdgeMarginPx` 24,
+`PileChipWidthPx` 70 and `_pileChipYPx` 180 existed only so
+`ChipCenterInBottomCenterSpace` could reconstruct, through three coordinate
+spaces, a chip position that slice 4 had already authored in USS. The chips are
+elements in this same tree now, so `CardHandView` reads `chip.worldBound.center`
+— a layout fact — and the reconstruction goes away with its constants.
+
+### The four traps, and where each is closed
+
+1. **The second Y-flip.** `ComputeSlotTransform` emits y-**up** and
+   CCW-positive rotation; `translate` / `rotate` are y-**down** and
+   CW-positive. **Both flips are in one method**, `CardHandView.ApplyTransform`,
+   with a comment saying why they are together: fixing one and missing the other
+   mirrors the arc silently. Distinct from the pointer-space flip already on
+   `ICardCastService`'s coordinate contract.
+2. **`CatchUpToHand()` from the controller's `OnEnable`**, after the element
+   re-query — migrated elements are destroyed and re-cloned across a `SetActive`
+   cycle, losing every `_currentCard`. Symptom if missed: return from a reward
+   overlay, hand is blank.
+3. **`HandSequencer.Stop()` in `OnDisable`.** Unity kills coroutines on a
+   disabled MonoBehaviour but `_coroutine` stays non-null and `EnsureRunning`
+   early-returns on non-null — a mid-combat overlay would leave the hand
+   permanently deaf.
+4. **`visibility`, not `display:none`**, for the vacant slot and the
+   cast-mode hide. `display:none` orphans pointer capture and zeroes
+   `resolvedStyle`, and the hide happens *while the element holds capture*.
+
+### Deliberately NOT changed
+
+- **`Resources.LoadAll` + `CardImageRefs` stays** for the per-family body
+  sprite. `DraftCardElement` takes its sprites as serialized controller refs and
+  its comment explains why for the *picker*; the hand has always used
+  `Resources`, `CardImageRefs` names it as a consumer, and swapping the asset
+  path inside a migration commit is exactly the undeclared change the USS
+  comments keep warning against. If the two should converge, that is its own
+  slice.
+- **`ICardCastService` is untouched.** The verdict names it as a check:
+  unchanged since 7b.
+- **The engage/commit pair keeps its serialized-field shape.** They were
+  `[SerializeField]` on `CardWidget` so a designer could tune them per-prefab;
+  they become `[SerializeField]` on `CardHandView`'s host controller rather than
+  `const`, so that affordance survives the migration.
+
+## Technical Director Review
+
+**Full verdict: `production/td-verdicts/2026-09-13-card-hand-7c-design.md`**
+(`technical-director` `a4cb6c9bf388e0051` + `unity-ui-specialist`
+`a16f6be8268479967`, dispatched in parallel before any code was written;
+committed `d6b0660`). Reproduced here because this is the capture the edit is
+gated on.
+
+**Verdict: AMEND.** Direction right — move the pipeline to `WastelandRun.UI`,
+one panel, keep coroutines — but 7c must *fix* an invariant it planned to
+preserve, and one verified defect would have silently destroyed a designer bake.
+
+- **THE HAZARD.** `tokens.spacing.uss` claimed `--wr-size-card-*` 160×270
+  "matches the live Card.prefab sizeDelta". `Card.prefab` is **208 × 351**. The
+  hand card would have silently shrunk 23% with no compile error. Resolved in
+  7c1 by splitting the tokens.
+- **Invariant Z3 was already false** — `CardWidget.cs:555` raised the dragged
+  card with a raw `SetAsLastSibling()`. 7c1 made the single-writer claim true for
+  the first time; 7c2 keeps it true by putting every sibling-order write on
+  `CardHandView`.
+- **Q1 — pipeline in `WastelandRun.UI`.** Option (B) (leave it in CombatView) is
+  disqualified by a shipped-bug mechanism: `CombatHud.HandleOverlayShown` calls
+  `SetActive(false)` and the panel is its child, so every overlay cycle re-clones
+  the `UIDocument` tree — `CombatHud._cards` would hold `VisualElement`
+  references across that cycle and the hand would be dead after the first reward
+  picker. `HandLayoutEngine` sheds three element operations before travelling.
+- **Q2 — coroutines stay**, hosted on `CombatHudPanelController`. USS transitions
+  cannot carry `DrawOne`: `AnimateFromDeck` recomputes its target every frame
+  from live `Hand.Count` ("the hand makes room"), and a transition has a fixed
+  endpoint. Do NOT narrow `MonoBehaviour runner` — change the instance, not the
+  signature.
+- **Q4 — unify the text, keep the elements separate.** `BuildInfoText` and the
+  `BaseValueText` branch order moved to `CardDefinition` in 7c1. Do NOT unify
+  `DraftCardElement` and the hand card: a unified element needs a mode flag
+  gating positioning, drag and hover — **ADR-0011 forbidden pattern #3**, created
+  by the unification.
+- **Q5 — one tree**, hand layer between the chips and the crosshair, so "the
+  crosshair paints over the hand during a cast" is free and `BringToFront` on the
+  pile popup still works.
+- **Q6 — split 7c.** 7c1 prepare (landed, `cd65416`), 7c2 migrate.
+- **Acceptance condition carried forward:** every constant in the inventory lands
+  in USS or as a documented controller field **with its rationale comment
+  verbatim**, and the two coupled pairs land adjacent with the "move together"
+  note intact.
+- **Standing risk, not a solved item:** `CombatHudPanelController` is ~1016 lines
+  and 7c2 adds the pool, the z-order writer and a coroutine host. Above ~1400
+  lines, extract a `CardHandView` sub-object the way `PileChipView` was
+  extracted. **Taken up-front** — `CardHandView` ships as its own file in this
+  commit rather than as a later rescue.
+
+**UI specialist, substantive points taken:** `left`/`top` on reflow and
+`translate` per frame; `hierarchy.Insert` is the `SetSiblingIndex` equivalent;
+capture on threshold not on down, with `PointerCaptureOutEvent` as the single
+source of truth for "drag ended, possibly forcibly"; `_suppressNextClick`
+disappears rather than ports (a plain `VisualElement` has no `Clickable`, so
+there is no synthesized `ClickEvent` to suppress); `RuntimePanelUtils.PanelToScreen`
+is the exact inverse of `ScreenToPanel` — never hand-roll the flip; guard
+per-frame `Label.text` writes behind an equality check and move the sprite write
+to `AssignCard`. One of its citations
+(`CombatHudPanelController.cs:1081-1097 ResolveLayersIfPossible`) was
+**fabricated** — the file is 1016 lines and has no such method; the advice it
+supported is correct and is what the file already does.
+
+### One specialist claim was FALSE, and it was in the "verified" pile
+
+> `RuntimePanelUtils.PanelToScreen` is the exact inverse of `ScreenToPanel`.
+> Never hand-roll the flip.
+
+**There is no `PanelToScreen`.** The compiler rejected it outright — `CS0117:
+'RuntimePanelUtils' does not contain a definition for 'PanelToScreen'` — on the
+first build of this slice. This was not in the specialist's own list of five
+unverified items; it was stated as established API, alongside advice that was
+correct, which is exactly what made it cost a build.
+
+Worth noting *why it mattered at all*: the conversion is needed because
+`ICardCastService`'s contract is Unity screen space, and it is screen space
+because `CombatHud.UpdateTargetingHover` hit-tests the vehicles' **world-space
+UGUI** canvases with `RectTransformUtility.RectangleContainsScreenPoint`. The
+crosshair half of that seam round-trips (screen → panel) and would be happier
+with panel space; the UGUI half cannot be. So the hybrid stack is what forces the
+conversion to exist, and it will still force it after P4b.
+
+`CardHandElement.ToScreen` now MEASURES the mapping instead: two probes through
+the engine's own `ScreenToPanel` give the scale and sign per axis, and inverting
+those is exact for the axis-aligned affine transform `ScreenToPanel` is. Nothing
+in it assumes which way y runs or what the panel scale is — it asks. That is
+deliberately not the same thing as re-deriving the flip by hand.
+
+**What is NOT established:** that UI Toolkit offers no inverse *anywhere*. Only
+the one member was disproved, and by the compiler rather than by enumerating the
+type. A throwaway reflection probe was written to settle it and then dropped —
+the capture-before-destroy hook gates new editor scripts, and a diagnostic that
+exists for one run does not warrant a TD entry to get past it. Left as a small
+open item: if a first-class inverse exists, `ToScreen` collapses to one call.
+
+**Still unverified by the specialist — flagged, not treated as fact:**
+absolute-position reordering being layout-free in this build, `usageHints`
+availability in 6.3, `IPointerEvent.originalMousePosition`'s coordinate space,
+whether `display:none` releases pointer capture, `experimental.animation`
+stability. 7c2 depends on **none** of them: it reorders by `hierarchy.Insert`,
+sets no `usageHints`, reads `evt.position` (documented panel space) rather than
+`originalMousePosition`, uses `visibility` rather than `display`, and animates
+from the existing coroutines rather than `experimental.animation`.
+
+## 7c2 — LANDED, Unity `ef7b678`
+
+**41 files, 2,406 insertions / 3,520 deletions.** EditMode **1287 / 1286 passed /
+0 failed / 1 `[Explicit]` skip**, PlayMode **17/17**, 0 `error CS`, grep-gates
+clean — all at baseline.
+
+### Two simplifications the plan did not anticipate
+
+1. **`ApplyZOrderForWidget` has no safe single-element equivalent, so it is
+   gone.** The only index-setting route in UI Toolkit is remove-then-insert,
+   which detaches the element from the panel for an instant — and `RaiseToTop`
+   runs mid-drag on the element holding pointer capture. `BringToFront` reorders
+   in place, so the canonical order is expressed as repeated `BringToFront` from
+   the rightmost card inward and every caller runs the whole pass. Eight slots, on
+   hand mutation only. This also makes invariant Z3 *simpler* to check than the
+   TD's proposed grep: it is one method, not one method per call shape.
+2. **The `isBusy` predicate injected into `CombatHudPanelController.Bind` is
+   gone.** It existed because `HandSequencer` was a CombatView type this assembly
+   could not name. It can name it now, so `IsCommitAllowed` reads
+   `_handSequencer.IsRunning` directly — the same reasoning that retired the pile
+   chips' injected count getter in slice 4.
+
+### Refinement to the verdict's acceptance grep
+
+The TD proposed: *"`grep -n "SetSiblingIndex\|BringToFront\|SendToBack"
+Assets/Scripts/UI/` shows writes from exactly one file."* **That predicate is too
+broad and would have failed on landing.** `MapViewController` (storm layer, player
+marker), `BeaconNodeElement` and `CombatHudPanelController` (pile popup) all call
+`BringToFront` legitimately and predate this slice. The checkable claim is
+narrower: *sibling-order writes against a `CardHandElement` come from
+`CardHandView` alone*, which holds. Verified by inspection of all six remaining
+hits.
+
+### Known limit, carried unchanged rather than fixed
+
+`CatchUpTo` does not skip animating slots, and `HandSequencer.Stop()` does not
+reach the per-card coroutines `HandBeat` started on the runner. So a loop swap
+landing mid-discard can have `AssignCard` fight an in-flight animation. **The UGUI
+`CatchUpToHand` had the identical hole** — it is not a regression, and fixing it
+inside a migration commit would smuggle a behaviour change into a diff whose
+whole claim is visual identity. Noted for the follow-up pass.
+
 ## Approval
 
 User approved continuous execution of P4a on 2026-09-13 ("keep going until we
 are done"), and delegated slice sequencing ("i trust you go as you recommend").
+The 7d-folds-into-7c2 divergence above is the one item that changes the shape of
+the agreed plan rather than its content, and is surfaced rather than absorbed.
