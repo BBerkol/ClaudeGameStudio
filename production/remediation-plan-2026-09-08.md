@@ -962,7 +962,8 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
 | 2 | `zonesLive` single-writer consolidation of the `HitZonesCanvas` toggle | **DONE 2026-09-12** — Unity `6b0e743`. Behaviour-neutral (no playtest owed). `ApplyZonesLive` is the sole writer of that canvas's ACTIVE state — verified repo-wide; the other two consumers write `worldCamera` only. **Step 5 flips the system by editing one expression: `bool zonesLive = !hideOpposite;`** |
 | 3 | ~~ADR-0014 amendment~~ → **ADR-0018 superseding ADR-0014** | **DONE 2026-09-13.** Escalated from amendment to supersession: the false premise sits in ADR-0014's title, summary, decision, diagram, rationale AND consequences. The gating canvas audit found **four more** false claims beyond the original `Popups` one — see below. Capture: `polish-captures/2026-09-13-adr-0014-supersession.md` |
 | 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
-| 5 | **P4** — flip gate to targeting-only, delete zone tooltip plumbing (~60 lines + dead `\|\| _combatTooltip != null` at `:934` + reversed-Q1 prose in 3 files), idle info → ring hover, land `SlotReadout`, retire badge self-poll | not started |
+| 4b | Widgets own hover + targeting; hit zone becomes targeting-only | **DONE + PLAYTESTED 2026-09-13** — Unity `a17aa20` + `b2a4116`. All four criteria pass: ring/badge hover → tooltip · vehicle art → nothing · ring targetable alongside art · enemy badge tints when its art is aimed at. Verdict `td-verdicts/2026-09-13-widget-hover-targeting-package.md` |
+| 5 | **P4** — UXML/USS authoring + `SlotReadout` seam + retire badge self-poll. **Much smaller than originally scoped:** 4b already moved the tooltips, the targeting surfaces and the zone-tooltip deletion out of it | not started |
 | 6 | **P4 close** — P5 predicate gate written against the amended category | not started |
 
 **Two verdict deviations taken in step 2, and why — do not "correct" them back:**
@@ -975,6 +976,20 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
    that edge and is **self-correcting**; `_combatVisual` is replaced on every
    vehicle swap, so a predicate-keyed cache would suppress the first write to a
    freshly-swapped canvas and strand it in the previous vehicle's state.
+
+**`damagedAlive` is DEAD, not deferred** (settled 2026-09-13). It lived in
+`VehiclePartHitZone.OnPointerEnter` and meant "don't let the ART pop a tooltip
+that repeats what the visible ring already shows" — it was one surface deferring
+to another. With the tooltip on a single surface there is no conflict to
+arbitrate, and reinstating it on the widget would suppress the tooltip exactly
+when the player hovers a ring in order to read it. Do not re-raise.
+
+**Subscription trap, worth not repeating:** step 4b deleted the hit zone's own
+`ShowTooltip` AND widened `HandleWidgetHover` to serve every slot — but the zone
+was still subscribed to that handler via `WireCombatHoverTarget`, so the art
+kept raising tooltips by a second route. **Deleting a component's own handler
+does not unsubscribe it from a shared handler you widened underneath it.** Fixed
+in `b2a4116` with an explicit `raisesTooltip` flag per call site.
 
 **Verification trap hit on the way, worth not repeating:** the first step-2 test
 run reported "no results XML" with an `error CS` count of **0** — the Editor was
