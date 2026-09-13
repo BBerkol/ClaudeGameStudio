@@ -37,7 +37,7 @@ behavioural rework, an assembly refactor and a visual migration. The split:
 | Commit | Content | Risk |
 |---|---|---|
 | **7a** | delete provably-dead code | none — no callers |
-| **7b** | replace the `_hud` / `_controller` couplings with injected delegates, **still UGUI** | behavioural, isolated, independently playtestable |
+| **7b** | invert the `_hud` / `_controller` couplings, **still UGUI** | behavioural, isolated, independently playtestable |
 | **7c** | the UXML/USS element + drag rework | visual |
 | **7d** | retire `Card.prefab`, its author method, test rows, dead Hand\* files | cleanup |
 
@@ -96,6 +96,66 @@ in the file is dead.
 no designer-tuned constants. The capture-before-destroy enumeration that slices
 1–6 needed begins at 7c, where `Card.prefab`'s authored geometry and the
 widget's tuned constants actually move.
+
+---
+
+---
+
+## 7b — the cast seam
+
+Full verdict: `production/td-verdicts/2026-09-13-card-cast-seam.md`. TD returned
+**AMEND** and corrected three premises in the brief; all five amendments taken.
+
+`ICardCastService` declared in `WastelandRun.UI`, implemented by `CombatHud`
+(CombatView already references UI, so the arrow points the right way and nothing
+moves). `CardWidget` now holds `Func<CombatLoop>`, `Action<HandCardInstance>` and
+`ICardCastService` instead of `CombatController` / `CombatHud`.
+
+**`CardDefinition.RequiresTarget`** absorbed `CombatHud.TargetingRequiresTarget`,
+whose whole body was `TargetMode != TargetMode.Self` — a one-line rule about card
+data that was sitting one assembly up, behind a MonoBehaviour.
+
+`CombatHud`'s targeting members renamed to match the interface so implementation
+is **implicit**: `TargetingActive`→`IsCasting`, `TargetingBeginCast`→`BeginCast`,
+`TargetingUpdateCast`→`UpdateCast`, `TargetingEndCast`→`EndCast`,
+`TargetingCard`→`CastingCard`. Five explicit-interface forwarders would have been
+ADR-0011 forbidden pattern #1 verbatim — *"methods whose sole purpose is to
+translate one vocabulary into another"*.
+
+### The defect the review caught
+
+I described the `_controller` sites as "`.Loop` reads only". Three of them
+(`CardWidget.cs:241, 459, 487`) were **Unity-null teardown guards**.
+`CombatController.Loop => _loop` is a plain managed field read: on a *destroyed*
+MonoBehaviour it neither throws nor returns null, and only Unity's overloaded
+`==` detects destruction. A naive `() => _controller.Loop` closure would have
+silently dropped that and left the card driving a dead loop through teardown —
+no exception, no log. The guards now live inside the closures at the `Bind` call
+site, which is the only place they still can.
+
+### What 7b does NOT do
+
+It does **not** make `CardWidget` assembly-portable. The widget still
+hard-references `HandLayoutEngine.ComputeSlotTransform`, and
+`HandLayoutEngine.ApplyZOrderForWidget(CardWidget, …)` takes a `CardWidget`
+parameter — a genuine circular dependency — plus `HandSequencer` and `HandBeat`.
+7b inverts the **behavioural** couplings; the **layout** couplings are 7c's
+problem. Recorded so 7c is not planned against a false baseline.
+
+### Do not delete this seam
+
+`ICardCastService` is permanent. It differs from the slice-4 callback seam that
+slice 5 deleted: that one existed only because slice 4 had landed and slice 5 had
+not — it had an expiry date. This one has none. `CombatHud` still owns targeting
+at 1.0 and the card element still lives in `WastelandRun.UI`. The aggressive
+seam-deletion instinct applied correctly in slice 5 would be wrong here.
+
+### Divergence from the verdict
+
+The TD proposed `TargetingActive` → **`IsActive`**. Used **`IsCasting`** instead:
+`CombatHud.IsActive` reads as "is the HUD active" on a MonoBehaviour that does a
+dozen unrelated things. Same goal — implicit implementation, zero forwarders —
+without the readability regression on the concrete type.
 
 ---
 
