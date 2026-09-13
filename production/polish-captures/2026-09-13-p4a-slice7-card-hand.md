@@ -185,6 +185,60 @@ written down:** without the gap, releasing in the band just above the engage
 point auto-commits, so a player dragging a card *back toward the hand* to cancel
 gets an unintended play instead. Both numbers move together or neither does.
 
+### `Card.prefab` — read from `AuthorCard()`, not from the widget
+
+**The card was resized by designer request.** Authored at 160 × 270, then
+**scaled 1.3× to 208 × 351 on 2026-06-04** — the note records that 1.5× was
+tried and rejected as too large. **Every child offset and font size below was
+scaled 1.3× to match**, which is why they carry two decimal places. These are
+not arbitrary-looking numbers to be "cleaned up"; they are a uniform scale
+applied to a designer-tuned layout.
+
+| Element | Anchors / pivot | Position | Size | Font |
+|---|---|---|---|---|
+| root | — | — | **208 × 351** | — |
+| Cost | top-left, pivot (0,1) | **(13.49, −9.23)** | 28.05 × 26.61 | **36.4** bold, Left |
+| Value | top-right, pivot (1,1) | **(−13.49, −9.23)** | 28.05 × 26.61 | **36.4** bold, Right |
+| Name | 0.05–0.95 × 0.55–0.82 | (0, 0) | stretch | **20.8** bold, Center |
+| Info | 0.05–0.95 × 0.18–0.45 | **(0, −48.75)** | (0, **−45.5**) | **18.2**, Bottom |
+
+Palette, **designer-baked 2026-05-09**:
+
+| Element | Colour | Note |
+|---|---|---|
+| Cost | **RGBA(0.7451, 0.3160, 1, 1)** | purple-magenta |
+| Value | **RGBA(0.7451, 0.3160, 1, 1)** | *deliberately identical to Cost* — the two corner numbers must read as a matched pair |
+| Name | **black** | |
+| Info | **RGBA(0.18, 0.18, 0.22, 1)** | |
+| background | **white** | must stay white: the Image is real card art and the tint is multiplicative |
+
+The background tint being white is the same constraint as `PlayableTint` above,
+stated twice in the original for the same reason — anything other than pure white
+washes out the artwork.
+
+### `HandLayoutEngine` — the arc
+
+| Constant | Value |
+|---|---|
+| `HandCapacity` | **8** |
+| `CardSpacingPx` | **180** |
+| `CardArcHeightPx` | **35** |
+| `CardArcRotationDeg` | **3** |
+| `IdleDropOffsetY` | **−100** — parks the hand below its natural arc to free play-field space |
+
+Centering uses the **live hand count**, not `HandCapacity`, so the arc and
+rotation tighten around the actual cards as the hand shrinks.
+
+### `HandBeat` — the discard/draw rhythm
+
+| Constant | Value | Rationale as written |
+|---|---|---|
+| `CardAnimDurationSec` | **0.25** | |
+| `HandBeatStaggerSec` | **0.05** | "the cascade-reading floor StS-style hand dumps land on" — one constant for BOTH end-turn cascades and in-turn bursts |
+
+Plus an anti-stall safety timeout (2× anim duration, 1.5s floor) that logs and
+continues draining rather than wedging the pipeline.
+
 ## Approval
 
 User approved continuous execution of P4a on 2026-09-13 ("keep going until we
