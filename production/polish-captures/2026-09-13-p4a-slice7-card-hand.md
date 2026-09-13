@@ -508,6 +508,50 @@ narrower: *sibling-order writes against a `CardHandElement` come from
 `CardHandView` alone*, which holds. Verified by inspection of all six remaining
 hits.
 
+### Follow-up — `CardHandElement_Test`, 12 cases, each mutation-validated
+
+7c2 shipped with the silent traps closed in *code* and nothing guarding them. The
+migration itself was covered only by "the existing 1287 still pass", which cannot
+see a mirrored arc. Added `Assets/Tests/EditMode/UI/CardHandElement_Test.cs`
+covering the three things a playtest is **bad** at catching, because each produces
+a plausible-looking screen:
+
+1. **The conversion.** `ApplyTransform` negates y AND rotation. Two independent
+   sign errors, same symptom class.
+2. **The template importing EMPTY.** A UXML comment containing `--` imports
+   non-null but childless — the hand would render eight invisible boxes that still
+   accept drags.
+3. **`_handCardTemplate` unwired on the shipping prefab.** It has no row in
+   `CombatWidgetPrefabWiring_Test` because that fixture only reaches
+   `Assets/Prefabs/CombatView`, and this ref lives in `Assets/Prefabs/UI`. It was
+   hand-wired into the prefab YAML in 7c2 and was, until now, **the one thing in
+   the slice nothing verified.**
+
+Plus the fan invariants (symmetry, middle-card crest, span = spacing × gaps,
+single-card centred) and the hover/drop coupling.
+
+**Each was seen failing on the bug it guards** — `feedback_prove_test_fails_on_the_bug`:
+
+| Mutation | Expected red | Result |
+|---|---|---|
+| `-handPos.y` → `handPos.y` | the Y assertion | **12 run, 2 failed** — `ApplyTransform_FlipsBothYAndRotation` on *"Y MUST be negated"*, plus the hover test from the second mutation in the same run |
+| `HoverLiftPx = -IdleDropOffsetY` → `90f` | `HoverLift_ExactlyCancelsTheIdleDrop` | red on *"must be the exact negation of the idle drop"* |
+| `-handRotZ` → `handRotZ` | the rotation assertion | **12 run, 1 failed** — red on *"Rotation MUST be negated too"*, and **only** that one, proving the two flips are guarded independently rather than one masking the other |
+
+Suite after: **1299 / 1298 passed / 0 failed / 1 `[Explicit]` skip** (+12).
+
+### One value stopped being duplicated
+
+`CardHandElement.HoverLiftPx` was a literal `100f` beside a comment asking whoever
+retunes it to remember `HandLayoutEngine.IdleDropOffsetY = -100f`. Its *spec* is
+"cancel the idle drop exactly", so it is now
+`private const float HoverLiftPx = -HandLayoutEngine.IdleDropOffsetY;`. The
+two-copies-and-a-plea shape is ADR-0011 #2, and this was a live instance of it
+that the migration faithfully carried across. A half-retune is no longer something
+a reader has to catch; `IdleDropOffsetY` is the only home for the number, and the
+test above pins the relationship so the derivation cannot quietly become a literal
+again.
+
 ### Known limit, carried unchanged rather than fixed
 
 `CatchUpTo` does not skip animating slots, and `HandSequencer.Stop()` does not
