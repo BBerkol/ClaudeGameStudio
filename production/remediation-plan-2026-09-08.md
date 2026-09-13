@@ -963,8 +963,32 @@ sits above the vehicle being repaired. Do not re-raise without playtest evidence
 | 3 | ~~ADR-0014 amendment~~ → **ADR-0018 superseding ADR-0014** | **DONE 2026-09-13.** Escalated from amendment to supersession: the false premise sits in ADR-0014's title, summary, decision, diagram, rationale AND consequences. The gating canvas audit found **four more** false claims beyond the original `Popups` one — see below. Capture: `polish-captures/2026-09-13-adr-0014-supersession.md` |
 | 4 | Player intent panel, world-space UGUI, **its own sorting order** (NOT `IntentCanvas`'s 5, which sits under `HitZonesCanvas` at 15) | not started |
 | 4b | Widgets own hover + targeting; hit zone becomes targeting-only | **DONE + PLAYTESTED 2026-09-13** — Unity `a17aa20` + `b2a4116`. All four criteria pass: ring/badge hover → tooltip · vehicle art → nothing · ring targetable alongside art · enemy badge tints when its art is aimed at. Verdict `td-verdicts/2026-09-13-widget-hover-targeting-package.md` |
-| 5 | **P4** — UXML/USS authoring + `SlotReadout` seam + retire badge self-poll. **Much smaller than originally scoped:** 4b already moved the tooltips, the targeting surfaces and the zone-tooltip deletion out of it | not started |
+| 5 | **P4 — SPLIT into P4a (screen-space) + P4b (world-anchored)** | see below |
+| 5·P4a·1 | Combat HUD panel + End Turn migration | **DONE + PLAYTESTED 2026-09-13** — Unity `b78ff04` + `13d8f43` + `9b4c848`. Net −164 lines. All five criteria pass, incl. the layering check. **Pattern proven** |
+| 5·P4a·2+ | Energy orb, pile chips + popup, turn banner, ambush banner, crosshair, card hand | not started — each lands as an additional child of the existing tree, so they cost far less than slice 1 |
+| 5·P4b | `HudAnchors` (MainBar, rings, badges, BuffStrip) | **GATED on a measurement spike.** Zero UI Toolkit prior art for world-anchored positioning exists in this project — verified, nothing under `Assets/Scripts/UI` references `RuntimePanelUtils` / `ScreenToPanel` / `WorldToScreenPoint`. If the per-frame cost is unacceptable, `HudAnchors` joins the ADR-0018 registry with a stated exit criterion instead of migrating |
 | 6 | **P4 close** — P5 predicate gate written against the amended category | not started |
+
+**P4a slice 1 — the migration pattern, now proven.** Each migrated widget is a
+child of ONE `CombatHudPanel.uxml` tree, not a panel per widget: the UGUI
+widgets it replaces were children of a single canvas, so one tree is their 1.0
+shape (P3's per-surface panels were self-contained overlays, a different case).
+The panel's `UIDocument` sits at sortingOrder **−10**, below the outcome overlay
+and reward pickers at 0, so the overlay covers the HUD rather than the reverse.
+`WastelandRun.UI` may not reference `CombatView` (ADR-0014's one-way arrow), so
+view-side gates arrive as injected predicates — the `HandSequencer` check is a
+`Func<bool>`, not the sequencer itself.
+
+**Two traps slice 1 hit, both worth not repeating:**
+1. A migrated widget's field cannot be a nested-instance ref like
+   `_outcomeOverlay` without hand-writing a `PrefabInstance` block into
+   `CombatHud.prefab`. Use a **prefab ref that CombatHud Instantiates**, as
+   `_targetingReadoutPrefab` does.
+2. **The widget being deleted was itself a nested instance inside
+   `CombatHud.prefab`.** Deleting its source prefab leaves a broken instance
+   behind; removing it cleanly means excising the `PrefabInstance` block, every
+   `stripped` block, AND the orphaned `m_Children` entry in the parent. 120
+   lines. Expect this for every remaining P4a widget.
 
 **Two verdict deviations taken in step 2, and why — do not "correct" them back:**
 
