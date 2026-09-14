@@ -808,6 +808,14 @@ that historically no-opped while logging success. Deleting it is the
 `feedback_aggressive_dead_code_cleanup` call; it was left alone because it sits
 outside the approved scope of this slice.
 
+> **RESOLVED 2026-09-14 by P4a slice 7c2 (Unity `ef7b678`).** Deleted, along with
+> `FindDescendantByName` (its only caller) and the nested CardHand canvas it
+> patched. The decision resolved itself: in one UI Toolkit tree "above the vehicle
+> bars" is sibling order, so there was no longer a canvas to patch. Its
+> `override_sorting_gate` row was deleted rather than re-pointed — the gate is
+> written to fail loudly when its anchor Canvas vanishes, and it would have. The
+> MainBar row and the underlying hazard are untouched.
+
 #### Original plan text (superseded, kept for the record)
 
 ### ~~5.1 — The `BuildLegacy` cluster (do before ADR-0014 P4)~~
@@ -1176,13 +1184,80 @@ before a third mode lands, and `ApplySurface(Entry|Garage|Vendor)`.
 
 ---
 
-## Playtest debt
+## Playtest debt — CONSOLIDATED 2026-09-14. This is the whole list.
 
-- The read-only garage has never been on screen (steps 1–4 playtest covered the
-  entry, not every layout number).
-- Composed deck (13 cards) and the new offer text are proven by test only.
-- Unconfirmed on screen: whether the part-offer row shows granted-card text
-  ("4x BulletBarrage") or the old category label.
+**Status: P4a is code-complete and BLOCKED here.** P4b and P5 are both gated on
+this list. Written into the tracked plan rather than `active.md` because that file
+is gitignored and this has now survived several sessions.
+
+### A — the five unplayed P4a slices. Nothing since slice 1 has been on screen.
+
+Per-slice detail lives in each capture; these are the checks that decide whether
+the migration was correct rather than merely green.
+
+| Slice | The checks |
+|---|---|
+| **3** banners | tints blue / orange / grey by phase · VICTORY green, DEFEAT red · "READY" on setup · ambush tag **only** on ambush · both banner texts **warm off-white, not white** |
+| **4** pile chips | counts **roll one integer at a time, number pulsing**, not teleport · reshuffle → deck overshoots then rolls back, **never flashes −1** · empty pile dims to 45% · **cards still fly to and from the chips** — a card flying to screen-centre means the coupling rewrite's formula is wrong |
+| **5** pile popup | grows from **bottom-left** for DECK, bottom-right for DISCARD · energy chip is a **round gold disc** (was square — intended) · scrim click closes, panel click does not · re-open starts at top · **with the popup open, click a vehicle ring THROUGH the scrim — nothing should respond** |
+| **6** crosshair | textured, not plain boxes · **tracks the cursor with no offset** (exactly 48px off = the box-vs-centre conversion is wrong) · pure red attack / lime repair · brackets pinch **on cardinal axes** (TL down, TR left, BL right, BR up) · flick off-and-on mid-animation reverses smoothly · **paints OVER the target rings** |
+| **7c2** card hand | see the block below — it is the longest and the highest-risk |
+
+**Slice 7c2, the card hand.** Every item here fails *silently* — the traps are
+closed in code and nothing but an eye can confirm it:
+
+- **The arc is not mirrored.** Fans upward, middle card highest, cards tilting
+  outward. **Check the vertical and the tilt separately** — they are two
+  independent sign errors in `CardHandView.ApplyTransform` and fixing one makes
+  the other look almost right. (Both are now mutation-proven by
+  `CardHandElement_Test`, so a regression here would be a downstream re-flip
+  rather than the conversion itself.)
+- Hover lifts a card to sit **level with its neighbours' natural arc** — not
+  above, not half-way.
+- **Open a reward picker mid-run, close it → the hand is still populated.**
+  Failure mode is a *blank hand over a live combat*.
+- **Then end a turn** → cards still fly out and in. If the hand went deaf, the
+  `OnDisable` `HandSequencer.Stop()` is missing.
+- Drag an Attack up → card hides, reticle takes over with no offset · back below
+  ~120px → card returns · release below ~200px → bops down and fades in · release
+  on a valid part above ~200px → plays.
+- **Right-click mid-drag AND alt-tab mid-drag** → both settle the card home.
+- Tap a Plate/Buff/Draw → plays. Tap an Attack → nothing.
+- Cards read **208 × 351**. ~23% smaller means the wrong size token was consumed.
+- An unplayable card dims its **art** but keeps its text legible.
+- Projected damage colours the top-right number lime / warm red — and **no literal
+  `<color=…>` is visible as text anywhere**.
+- Cards swallow their own clicks, but the **gaps between them** fall through to
+  the vehicle hit zones.
+
+### B — older one-look checks, still owed
+
+- **Cards above the target rings, and tooltip on buff hover** (from the
+  `overrideSorting` fix, §5.1a). **This check changed meaning in 7c2:** the
+  nested CardHand canvas it was written for no longer exists, so what is being
+  confirmed now is the UI Toolkit panel layering over the UGUI canvases. Slice 1
+  proved that pattern; the hand is the largest surface to lean on it.
+- **`[AMBUSH]` is UNTESTED.** No card grants a status effect yet, so the buff row
+  has only ever been reached via an existing FlameBarrier.
+- **The read-only garage has never been on screen** — the steps 1–4 playtest
+  covered the entry, not the layout numbers.
+- **Composed deck (13 cards) and the new offer text are proven by test only** —
+  no run played since.
+- **Unconfirmed:** whether the part-offer row shows granted-card text
+  (`4x BulletBarrage`) or the old category label.
+
+### C — closed, do not re-raise
+
+- **`PatchCardHandCanvasMenu` deletion** was logged in §5.1a as an open decision
+  (a redundant menu that historically no-opped while logging success). **Done** —
+  7c2 deleted it along with the nested canvas it patched, so there is no decision
+  left. Its `override_sorting_gate` row went with it; the MainBar row and the
+  underlying hazard remain.
+
+### Sequencing note
+
+Slice 5's **scrim click-through** and 7c2's **arc orientation** are the two where
+a wrong result means real rework rather than a tweak. Worth looking at those first.
 
 ---
 
