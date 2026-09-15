@@ -1184,80 +1184,165 @@ before a third mode lands, and `ApplySurface(Entry|Garage|Vendor)`.
 
 ---
 
-## Playtest debt — CONSOLIDATED 2026-09-14. This is the whole list.
+## Playtest debt + defect register — REVISED 2026-09-15 after the first P4a run
 
-**Status: P4a is code-complete and BLOCKED here.** P4b and P5 are both gated on
-this list. Written into the tracked plan rather than `active.md` because that file
-is gitignored and this has now survived several sessions.
+**Status: P4a is code-complete, partially played, and now carries 6 open
+defects.** P4b and P5 stay gated. The 2026-09-14 consolidated list is folded in
+below: §1 is what the run found, §2 is what the run *confirmed good*, §3 is what
+is still unlooked-at. Nothing was cut.
 
-### A — the five unplayed P4a slices. Nothing since slice 1 has been on screen.
+### 0. Design decision — 2026-09-15, user, binding
 
-Per-slice detail lives in each capture; these are the checks that decide whether
-the migration was correct rather than merely green.
+**Tap-to-play is removed. Every card is pulled out and played the same way.**
 
-| Slice | The checks |
-|---|---|
-| **3** banners | tints blue / orange / grey by phase · VICTORY green, DEFEAT red · "READY" on setup · ambush tag **only** on ambush · both banner texts **warm off-white, not white** |
-| **4** pile chips | counts **roll one integer at a time, number pulsing**, not teleport · reshuffle → deck overshoots then rolls back, **never flashes −1** · empty pile dims to 45% · **cards still fly to and from the chips** — a card flying to screen-centre means the coupling rewrite's formula is wrong |
-| **5** pile popup | grows from **bottom-left** for DECK, bottom-right for DISCARD · energy chip is a **round gold disc** (was square — intended) · scrim click closes, panel click does not · re-open starts at top · **with the popup open, click a vehicle ring THROUGH the scrim — nothing should respond** |
-| **6** crosshair | textured, not plain boxes · **tracks the cursor with no offset** (exactly 48px off = the box-vs-centre conversion is wrong) · pure red attack / lime repair · brackets pinch **on cardinal axes** (TL down, TR left, BL right, BR up) · flick off-and-on mid-animation reverses smoothly · **paints OVER the target rings** |
-| **7c2** card hand | see the block below — it is the longest and the highest-risk |
+Today the gesture is bimodal and derived, not authored: `CardDefinition.TargetMode`
+computes `Self` for anything with no attack and no repair effect, so Plate / Buff /
+Draw **and Reposition** (Handbrake, Overtake) are tap-playable while attacks are
+not. The player has no way to see which bucket a card is in. Verdict: one gesture
+for all cards — drag out, release to play. `CardHandElement.TryTapPlay` and its
+`_requestPlay` tap seam go; `CombatController.RequestPlay(card)` stays, because
+`EndCast` still uses the no-slot overload for Self-target commits.
 
-**Slice 7c2, the card hand.** Every item here fails *silently* — the traps are
-closed in code and nothing but an eye can confirm it:
+This raises the stakes on defect **D1** — with tap gone, the drag thresholds are
+the *only* way to play a card, so they have to be right first.
 
-- **The arc is not mirrored.** Fans upward, middle card highest, cards tilting
-  outward. **Check the vertical and the tilt separately** — they are two
-  independent sign errors in `CardHandView.ApplyTransform` and fixing one makes
-  the other look almost right. (Both are now mutation-proven by
-  `CardHandElement_Test`, so a regression here would be a downstream re-flip
-  rather than the conversion itself.)
-- Hover lifts a card to sit **level with its neighbours' natural arc** — not
-  above, not half-way.
-- **Open a reward picker mid-run, close it → the hand is still populated.**
-  Failure mode is a *blank hand over a live combat*.
-- **Then end a turn** → cards still fly out and in. If the hand went deaf, the
-  `OnDisable` `HandSequencer.Stop()` is missing.
-- Drag an Attack up → card hides, reticle takes over with no offset · back below
-  ~120px → card returns · release below ~200px → bops down and fades in · release
-  on a valid part above ~200px → plays.
-- **Right-click mid-drag AND alt-tab mid-drag** → both settle the card home.
-- Tap a Plate/Buff/Draw → plays. Tap an Attack → nothing.
+### 1. Open defects found in the 2026-09-15 run
+
+Ordered by severity. D1–D4 are confirmed by code read; D5 needs one repro; D6 is
+latent and independent of what triggered today's lock.
+
+| # | Defect | Evidence | Status |
+|---|---|---|---|
+| **D1** | **Crosshair arms after ~20px of drag, not 120.** `HoverLiftPx` = `-HandLayoutEngine.IdleDropOffsetY` = **+100**, but lift is measured from `_basePosition` — the *un-hovered* arc row (`CardHandElement.cs:630`). A card about to be dragged already sits 100px up. Engage (120) is 20px of real drag; commit (200) is 100px. | Code read; matches "attack card turns immediately on clicked into a crosshair" | CONFIRMED |
+| **D2** | **Wheel / engine can be untargetable.** Drag-cast hit-tests **bounding rects** (`CombatHud.FindHoverInStack:963`, `RectangleContainsScreenPoint`). The zones' pixel-perfect `alphaHitTestMinimumThreshold` only serves UGUI raycasts, not this path. The 2026-09-13 §5.5-4b change put each slot's badge/ring into `_combatHitTargets` **ahead of** the per-slot zones (`VehicleBarStack.cs:638` vs `:955`), so slot 0's badge rect is tested before slot 2's wheel zone. Structural-last is handled; sibling-widget-vs-other-slot's-zone is not. | Code read; matches "trouble targeting the wheel or the engine"; the `14` badge sits on the front wheel in the 2026-09-15 screenshot | CONFIRMED |
+| **D3** | **`_pointerArmed` leak on right-click cancel.** `CancelDrag` (`CardHandElement.cs:776`) clears `_isDragging`/`_dragStarted` but not `_pointerArmed`; its `ReleasePointer` fires `PointerCaptureOut`, which early-returns on `!_dragStarted`. The following left `PointerUp` falls through to `TryTapPlay()`. | Code read only. **Did NOT manifest in play** — user reports right-click cancel works fine. Consistent: `TryTapPlay` gates on `TargetMode.Self`, so it is a no-op when the cancelled drag was an **attack**. It would only fire on a cancelled **Plate / Buff / Draw / Reposition** drag. | LATENT — dies outright with §0; fix the flag leak anyway when that lands |
+| **D4** | **Crosshair sub-images mispositioned AND the acquire-lock never animates.** Corrected 2026-09-15: **the reticle DOES track the cursor** — `MoveCrosshairTo` is fine and the earlier "position broken" reading was wrong. What is broken is (a) where the five sub-sprites sit inside the 96×96 reticle and (b) the lock: it never pinches when a target is acquired. **The port is not the problem** — all four bracket centre offsets, both tint floats, `LockMultiplier` 0.65 and `LockTransitionSec` 0.5 were checked against `2026-09-13-p4a-slice6-crosshair.md` and every one carries over exactly; the USS margin conversion and `ApplyLockT`'s inverse are an exact round-trip. So this is a **runtime lifecycle failure, not a bad value port**. One mechanism owns both symptoms: `SnapshotCrosshairDefaults` is the only thing that writes bracket positions at runtime, and `TickCrosshair` returns immediately while `_crosshairDefaults == null`, so a snapshot that never runs kills the animation and a snapshot that runs on unresolved geometry corrupts the positions. Its trigger is a **one-shot `GeometryChangedEvent`** registered in `BuildCrosshair` (OnEnable) that unregisters on first fire — the exact shape of `feedback_uidocument_setactive_reclone` / `feedback_uidocument_negative_exec_order`. | User report + capture cross-check | CONFIRMED symptom; **one look tomorrow splits the two cases — see §5.6** |
+| **D5** | **SOFTLOCK — End Turn and card play both dead.** Also carries the *parked reticle*: the 2026-09-15 screenshot shows a crosshair sitting on the enemy front wheel with all cards at rest, which is a separate failure from D4 — `HideCrosshair` runs only from `EndCast`, so a reticle on screen with no drag means `EndCast` never ran. (User has not confirmed this independently; it is read off the screenshot.) Reading the same screenshot: card centres are 121.5px apart = `CardSpacingPx` 180 × panel scale 0.675, and Handbrake sits **two** slots right of Weld — so the model hand holds 5 cards and slot index 3 renders nothing. Invisible card + parked crosshair + dead input is one state: **a drag that never terminated**. The element still holds pointer capture (every later click routes to it), still carries `is-cast-hidden`, and never called `EndCast`. | Screenshot + code read | **TRIGGER UNKNOWN** — needs the Console from a repro |
+| **D6** | **Two unguarded permanent-wedge paths for End Turn**, independent of D5's trigger. (a) `CombatController.EndTurnCoroutine` waits `while (_hud.IsHandAnimating) yield return null;` with **no timeout**, and `_endTurnRoutine` is nulled only on normal completion — one element stuck at `IsAnimating` kills End Turn for the rest of the combat. (b) `HandSequencer.Drain` sets `_coroutine = null` only when it runs to completion, so any exception inside leaves `IsRunning` true forever and `IsCommitAllowed` gates End Turn on it. | Code read | CONFIRMED latent |
+
+### 2. Confirmed good on 2026-09-15 — do not re-check
+
+- **Slice 3 banners** — phase tint and text read correctly in the player-turn state.
+- **Slice 4 pile chips** — roll + pulse + card flight to/from the chips all read right.
+- **Slice 5 scrim** — background darkens; clicking outside the panel closes the popup.
+- **Slice 6 crosshair art** — textured, correct colour. Visuals only; see D4 for behaviour.
+- **7c2 arc orientation** — not mirrored. This was the highest-risk item on the
+  2026-09-14 list and it is now closed.
+- **7c2 hover lift** — sits level with the neighbours' natural arc.
+- **7c2 reward-picker survival** — open a picker mid-run, close it, hand is still
+  populated and the claimed card is in the deck. The blank-hand-over-live-combat
+  failure mode did not occur.
+- **7c2 right-click mid-drag** — works fine, confirmed 2026-09-15. The card
+  settles home and nothing plays on the following release. (D3's flag leak is
+  real in code but cannot fire on an attack-card cancel — see D3.)
+- **Slice 6 crosshair tracking** — the reticle follows the cursor. `ToScreen`'s
+  two-probe measure and `MoveCrosshairTo`'s `ScreenToPanel` round-trip are
+  correct; do not re-open that conversion. D4 is about the sub-sprites and the
+  lock, not the tracking.
+- **7c2 unplayable dim** — unplayable cards dim.
+- **Slice 5 popup placement** — the popup growing out of the chip, 12px above it,
+  pinned to that side of the screen, is **correct as authored**: `.wr-pilepopup__panel`
+  is `bottom: 220px` (chip centre 180 + half-height 28 + 12 gap), `left/right: 24px`.
+  The 2026-09-14 checklist wording ("grows from bottom-left") was wrong, not the code.
+
+### 3. Still unlooked-at — the owed list, trimmed to what is actually left
+
+**Slice 3 — banners**
+
+- `VICTORY` green / `DEFEAT` red (needs a combat to end either way)
+- `READY` on setup phase
+- `[AMBUSH]` tag appears **only** on an ambush encounter — and the tag itself has
+  still never been on screen (no card grants a status effect yet, so the buff row
+  has only ever been reached via an existing FlameBarrier)
+
+**Slice 4 — pile chips**
+
+- Reshuffle: deck overshoots then rolls back, **never flashes −1** (needs the deck
+  to run out)
+- Empty pile dims to 45%
+
+**Slice 5 — pile popup**
+
+- **Click a card row inside the panel** — the popup must NOT close. Only the dark
+  area closes it. The outside-click test walks ancestors and looks correct in code,
+  so this needs a precise re-test before it counts as a defect.
+- Energy chip on each row is a **round gold disc** (was square — the change is intended)
+- Re-open starts scrolled to the top
+- **With the popup open, click a vehicle ring THROUGH the scrim — nothing should respond**
+
+**Slice 6 — crosshair** (all blocked behind D1/D4)
+
+- Pure red on attack / **lime on repair** (needs a Weld dragged onto an offline player part)
+- Brackets pinch on the **cardinal** axes: TL down, TR left, BL right, BR up
+- Flick off-and-on mid-animation reverses smoothly
+- Paints **over** the target rings
+
+**Slice 7c2 — card hand**
+
 - Cards read **208 × 351**. ~23% smaller means the wrong size token was consumed.
-- An unplayable card dims its **art** but keeps its text legible.
+- Unplayable card dims its **art** but keeps its **text legible** (the dim itself is confirmed; legibility is not)
 - Projected damage colours the top-right number lime / warm red — and **no literal
-  `<color=…>` is visible as text anywhere**.
-- Cards swallow their own clicks, but the **gaps between them** fall through to
-  the vehicle hit zones.
+  `<color=…>` is visible as text anywhere**
+- Cards swallow their own clicks, but the **gaps between them** fall through to the
+  vehicle hit zones
+- **Alt-tab mid-drag** settles the card home (right-click is confirmed; alt-tab is not)
+- End a turn **after** returning from a reward picker → cards still fly out and in.
+  If the hand went deaf, the `OnDisable` `HandSequencer.Stop()` is missing.
+- Post-D1 fix: re-run the whole drag band — hide on engage, return below the engage
+  threshold, bop-and-fade below commit, play on a valid part above commit
 
-### B — older one-look checks, still owed
+**Older one-look checks, still owed**
 
-- **Cards above the target rings, and tooltip on buff hover** (from the
-  `overrideSorting` fix, §5.1a). **This check changed meaning in 7c2:** the
-  nested CardHand canvas it was written for no longer exists, so what is being
-  confirmed now is the UI Toolkit panel layering over the UGUI canvases. Slice 1
-  proved that pattern; the hand is the largest surface to lean on it.
-- **`[AMBUSH]` is UNTESTED.** No card grants a status effect yet, so the buff row
-  has only ever been reached via an existing FlameBarrier.
-- **The read-only garage has never been on screen** — the steps 1–4 playtest
-  covered the entry, not the layout numbers.
-- **Composed deck (13 cards) and the new offer text are proven by test only** —
-  no run played since.
+- **Cards above the target rings, and tooltip on buff hover.** What this confirms
+  now is UI Toolkit panel layering over the UGUI canvases — the nested CardHand
+  canvas it was originally written for no longer exists.
+- The **read-only garage has never been on screen** — the steps 1–4 playtest covered
+  the entry, not the layout numbers.
+- **Composed deck (13 cards) and the new offer text are proven by test only.**
 - **Unconfirmed:** whether the part-offer row shows granted-card text
   (`4x BulletBarrage`) or the old category label.
 
-### C — closed, do not re-raise
+### 4. Closed, do not re-raise
 
-- **`PatchCardHandCanvasMenu` deletion** was logged in §5.1a as an open decision
-  (a redundant menu that historically no-opped while logging success). **Done** —
-  7c2 deleted it along with the nested canvas it patched, so there is no decision
-  left. Its `override_sorting_gate` row went with it; the MainBar row and the
-  underlying hazard remain.
+- **`PatchCardHandCanvasMenu` deletion** — 7c2 deleted it along with the nested
+  canvas it patched. Its `override_sorting_gate` row went with it; the MainBar row
+  and the underlying hazard remain.
+- **7c2 arc orientation** — played 2026-09-15, correct. (Was the top sequencing risk.)
+- **Slice 5 popup anchor placement** — working as authored; see §2.
 
-### Sequencing note
+### 5. Repro protocol for D5 — run this first tomorrow
 
-Slice 5's **scrim click-through** and 7c2's **arc orientation** are the two where
-a wrong result means real rework rather than a tweak. Worth looking at those first.
+The Console is the whole deliverable here; the screenshot already gave us the state.
+
+1. Open the Console, clear it, enable **Error Pause**. Leave Collapse **off**.
+2. Enter a combat and play normally until the hand has 4–5 cards.
+3. Drag an **attack** card up until the reticle appears, then release it over a
+   valid enemy part. Repeat a few turns.
+4. The moment End Turn stops responding: **screenshot the Console** (or copy all of
+   it). A `[HandBeat]` warning, a `[CombatController] Play rejected`, or any
+   exception names the trigger outright. **A clean Console is also a result** — it
+   rules out the exception paths and points at pointer capture, which is a
+   different fix.
+5. Note whether the turn banner reads `your turn` or `resolving…` at the moment it
+   locks. That single word separates D6(a) from D6(b).
+
+### 5.6 One look that splits D4 — do this in the same run
+
+Drag any attack card until the reticle appears and **hold it still, off any
+target**. Look at where the four brackets sit relative to the centre dot:
+
+- **Brackets stacked on / near the centre dot**, or all four in the same place →
+  `SnapshotCrosshairDefaults` **ran on unresolved geometry** and baked garbage
+  into the inline margins. Fix is to stop trusting the one-shot geometry event.
+- **Brackets in a correct pinwheel** (one on each cardinal side, offset along the
+  perpendicular axis) **but they never pinch when you move onto a valid part** →
+  `_crosshairDefaults` is **still null**, the `GeometryChangedEvent` never fired,
+  and `TickCrosshair` has been a no-op the whole time.
+
+Both fixes live in the same method; knowing which one it is decides whether the
+inline-margin write needs undoing first. While you are there, note whether the
+reticle paints **over** the target rings — slice 6 moved it up from sortingOrder
+10 (below HitZones 15) and that change has never been eyeballed.
 
 ---
 
