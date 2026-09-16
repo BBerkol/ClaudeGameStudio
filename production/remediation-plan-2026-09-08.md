@@ -1191,6 +1191,62 @@ defects.** P4b and P5 stay gated. The 2026-09-14 consolidated list is folded in
 below: §1 is what the run found, §2 is what the run *confirmed good*, §3 is what
 is still unlooked-at. Nothing was cut.
 
+> **2026-09-16 UPDATE — the fix slice LANDED (uncommitted at time of writing;
+> see §0c).** D1 fixed, D3 fixed, D2 half-fixed, D6 hardened-but-open, D5
+> closed as a decomposition. Two NEW defects registered: **D7** (end-turn
+> discard animation bundles cards mid-screen — user wants per-card flights,
+> no bundling; lives in `HandBeat.DiscardBurst`) and **D8** (buff-chip
+> tooltip unverified — ring tooltips work; the strip hover falling through to
+> frame health is AS-DESIGNED when the strip is empty, and the prefab's
+> BuffStripCanvas overrideSorting/raycaster checked out correct on disk; test
+> needs a fight with a live buff chip). §2 additions confirmed 2026-09-16:
+> VICTORY/DEFEAT banners, red/lime reticle, gold energy discs, popup rows
+> read-only by design, scrim blocks vehicle rings, ring tooltips both sides,
+> cards above target rings, slice-4 reshuffle behaviour.
+
+### 0c. 2026-09-16 fix slice — what landed (Unity repo, working tree)
+
+Governing verdict: `production/td-verdicts/2026-09-16-p4a-defect-fix-slice.md`
+(TD-CHANGE-IMPACT: CONCERNS, 14 constraints — all honored; adversarial diff
+review found one stale comment, fixed). Capture:
+`production/polish-captures/2026-09-16-drag-cast-thresholds.md`.
+
+- **D5 → closed as decomposition.** Console repro showed: input alive, casts
+  arming/clearing, ZERO commits reaching the controller (no `Play rejected`,
+  no popups — `EndCast` silently no-ops with no hovered slot), End Turn dead
+  because the first End Turn's coroutine never completed. = D6(a) + D2 + D1.
+- **D1 FIXED**: lift measured from a drag-origin snapshot (`_dragOriginY`);
+  engage/commit 120/200 → **400/480** px of real upward drag (≈ HP-bar line),
+  changed in BOTH `CombatHudPanelController` consts and
+  `CombatHudPanel.prefab:74-75`; guarded by new EditMode drift test.
+  **Feel-calibration owed in the next playtest.** Tap-to-play fully deleted
+  (drag-only is the only gesture); `_requestPlay` chain removed across 4 files.
+- **D3 FIXED**: `CancelDrag` clears `_pointerArmed` (self-contained cancel).
+- **D2 HALF-FIXED**: hit-target registration now three tiers (all zones → all
+  widgets → structural last), killing cross-slot badge shadowing
+  (wheel/engine). The chassis-door dead spot did NOT fall to static analysis
+  (frame zone rect provably spans the door; badge is only 44×44) — **OPEN**,
+  and the new `[CombatHud] cast commit found no valid target` warning names
+  card + release position so the next door repro is diagnostic.
+- **D6 HARDENED, stays OPEN** (trigger of the 2026-09-16 lock still unnamed):
+  tween settle in try/finally via `SettleAfterDiscard`/`SettleAfterDraw` (only
+  terminal paths); stoppable handles (`TrackAnimation`/`AbortAnimation`);
+  HandBeat timeouts force-settle (detector AND remediator) naming the wedged
+  card; `HandSequencer.Stop()` sweeps orphaned tweens; `Drain` + 
+  `EndTurnCoroutine` handle-clear in finally + defensive `OnDisable`; End Turn
+  waits stay unbounded with a derived-budget scream (never a bypass, TD A5).
+  **PROVEN wedge mechanism (new PlayMode test, Unity 6000.3.13f1):
+  deactivating a coroutine's host GameObject kills it WITHOUT running its
+  finally** — pre-fix, any mid-tween SetActive cycle wedged `IsAnimating`
+  forever, silently. `AbortAnimation`'s direct-settle covers it now.
+- **Tests**: EditMode `total=1300 passed=1299 failed=0 skipped=1` (new
+  baseline; the skip is the intentional `[Explicit]`), PlayMode
+  `total=19 passed=19 failed=0` (was 17; +2 lifecycle tests). Zero `error CS`
+  in both logs.
+- **Next playtest owes**: drag feel at 400/480 (full band: hide on engage,
+  return below engage, bop-and-fade below commit, play above commit),
+  wheel/engine/chassis-door targeting, two consecutive End Turns, plus §3.
+
 ### 0. Design decision — 2026-09-15, user, binding
 
 **Tap-to-play is removed. Every card is pulled out and played the same way.**
