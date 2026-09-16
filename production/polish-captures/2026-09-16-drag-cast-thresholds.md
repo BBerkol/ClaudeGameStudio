@@ -29,6 +29,19 @@ already claim. 80px engage→commit forgiveness gap preserved (400→480).
 Starting values are explicitly calibration-pending after the first feel
 playtest (TD constraint B3); they remain a two-field Inspector tune.
 
+**2026-09-17 FINAL: 160/240, feel-confirmed in playtest** (two rounds:
+400/480 → 220/300 → 160/240; the landmark math kept placing the arm line at
+the card centre when the player reads it at the cursor/reticle).
+
+**2026-09-17 recalibration round 1: 400/480 → 220/300.** Playtest verdict: the
+crosshair armed at mid-screen — the 400 figure came from reading the HP-bar
+line off an 828px-tall windowed screenshot without rescaling to the 1080
+reference panel (~1.6× inflation) AND measuring from the panel bottom instead
+of the cursor's grab point. Corrected geometry (HP-bar bottom ≈310 panel px
+up, grab point ≈100 up) gives ≈210-220px of real drag to the landmark —
+matching the TD recap's floated 220/300 pair. 80px forgiveness gap preserved.
+Both homes (consts + prefab lines 74-75) changed together; drift test guards.
+
 ## Method
 
 Surgical 2-line YAML edit to the prefab. Explicitly NOT a re-run of

@@ -1247,6 +1247,47 @@ review found one stale comment, fixed). Capture:
   return below engage, bop-and-fade below commit, play above commit),
   wheel/engine/chassis-door targeting, two consecutive End Turns, plus §3.
 
+### 0d. 2026-09-17 — D2 and D4 CLOSED, playtest-confirmed
+
+- **D2 CLOSED — the real root cause was a y-axis flip, not ordering.**
+  `CardHandElement.ToScreen`'s measured inverse of
+  `RuntimePanelUtils.ScreenToPanel` returns UI Toolkit screen convention
+  (y-down); `RectTransformUtility.RectangleContainsScreenPoint` expects Unity
+  screen space (y-up). Every drag-cast hover/commit tested a point MIRRORED
+  about the screen midline — which is why only targets within ~70px of
+  y=Screen.height/2 ever resolved (gun, upper hull) and wheels/engine/door
+  were dead, on every vehicle, since P4a slice 6 landed. Proven by the
+  scan-table instrument: a release the player made on the wheel logged at
+  y=1315; 2160−1315=845 = the wheel band. Fix: one flip at the sole consumer
+  (`CombatHud.UpdateTargetingHover` → `hitPos`), crosshair rendering untouched
+  (its round-trip cancels the flip, which is why it never exposed the bug).
+  The 2026-09-16 three-tier reorder stays — correct but secondary.
+  Playtest-confirmed all parts targetable 2026-09-17.
+- **D4 CLOSED — two fixes.** (a) Rotation: UGUI localRotation is CCW-positive,
+  USS rotate CW-positive; the ±90° pair (TR/BL) rendered 180° wrong exactly as
+  the user reported; 0°/180° self-symmetric. USS values sign-flipped. (b)
+  Lifecycle: the one-shot GeometryChangedEvent (parent-registered) could fire
+  before the quarter children resolved and unregistered regardless;
+  `TrySnapshotCrosshairDefaults` now validates before baking, keeps listening
+  until valid, falls back at first cast, warns if still unresolved.
+  Pinch confirmed playing with converging brackets 2026-09-17.
+- **Ring↔part hover symmetry shipped** (user request during playtest): widget
+  (ring/badge)-resolved hover now lights the slot's part outlines via
+  `VehicleBarStack.SetSlotZonesHover`; zones already proxied the other way.
+- **Thresholds settled at 160/240** after two calibration rounds (400/480
+  overshot ~2× from an unscaled-screenshot measurement — see postmortem;
+  220/300 still armed above the HP-bar landmark). Feel-confirmed 2026-09-17.
+- **Diagnostics**: hover narrator + AttackStateController DIAG stripped; the
+  no-target commit scan-table dump RETAINED as a standing instrument
+  (postmortem P5).
+- **Postmortem**: `production/postmortems/2026-09-17-p4a-migration-regressions.md`
+  — five failure classes, six-rule prevention protocol (P1–P6), mechanism-
+  novelty gate. Owed from it: codify the try/finally + one-shot-event standard
+  into `.claude/docs/coding-standards.md` (lead-programmer), and the
+  remaining one-time debt items listed in its final section.
+- **Still open**: D6 (hardened, trigger unnamed), D7 (discard bundling feel),
+  D8 (buff-chip tooltip — needs a live buff), §3 checklist remainder.
+
 ### 0. Design decision — 2026-09-15, user, binding
 
 **Tap-to-play is removed. Every card is pulled out and played the same way.**
