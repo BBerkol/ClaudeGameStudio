@@ -248,7 +248,7 @@ preserved in ADR-0014 and not restated here.
 | **P2** | Slice 6 node-map + Run Complete authored UI Toolkit native | LANDED |
 | **P3** | `CardRewardPicker` + `CombatOutcomeOverlay` migrated | LANDED 2026-06-23 |
 | **P4** | ~~Migrate `Combat_HUD`, `CardHand`, `BuffStripCanvas`, `HudAnchors`, MainBar and rings~~ **Amendment A: closes on P4a scope** (`Combat_HUD`/`CardHand`/`BuffStripCanvas` panel — LANDED 2026-09-14, remediated 2026-09-16/17). `HudAnchors` is registry row A.3, not migration scope | **CLOSED 2026-09-17** |
-| **P5** | CI registry check per §4 + A.5 | Own slice, after the per-canvas code audit |
+| **P5** | CI registry check per §4 + A.5 | **DONE 2026-09-17** — `canvas_registry_gate` in `tools/ci/grep-gates.sh`: YAML half (globs all prefabs+scenes, resolves every `!u!223` to its owning GameObject via `m_GameObject`, 7-name allow-list) + CODE half (`AddComponent<Canvas>` pinned to exactly 2 sites; `BuildWorldCanvas` name literals must be registry names) + retired-name tripwires (`Debug`, `Combat_HUD`) + anti-vacuity (zero canvases found ⇒ FAIL; allow-list >7 ⇒ FAIL citing the A.2 cap). Negative-tested in 5 steps, all confirmed firing, incl. the nested-PrefabInstance and vacuous-code-half cases. Prerequisite deletions: the `Debug` and `Combat_HUD` canvases (both rendered nothing — see Consequences), verdict `production/td-verdicts/2026-09-17-p5-canvas-deletions.md` |
 
 Rollback shape is unchanged: each phase ships in its own commit and reverts
 independently.
@@ -267,6 +267,14 @@ question prose: git history + capture
 `production/polish-captures/2026-09-17-adr-0018-amendment-a.md`.
 
 ## Consequences
+
+**P5 closeout note (2026-09-17):** the category audit found two canvases that
+were registry-shaped but rendered nothing in any played frame (`Debug`,
+`Combat_HUD` — both deleted rather than allow-listed); the gate is what stops
+a third. Deleting `Combat_HUD` also removed the last runtime canvas
+constructor outside the two pinned sites (`CombatHud.BuildCanvas`, an
+ADR-0011 #3 bimodal path) — the gate's code half exists precisely because a
+static YAML check can never see that failure class.
 
 ### Positive
 
