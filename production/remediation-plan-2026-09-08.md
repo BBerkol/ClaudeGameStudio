@@ -1288,6 +1288,32 @@ review found one stale comment, fixed). Capture:
 - **Still open**: D6 (hardened, trigger unnamed), D7 (discard bundling feel),
   D8 (buff-chip tooltip — needs a live buff), §3 checklist remainder.
 
+### 0e. 2026-09-17 — D7 CLOSED, playtest-confirmed
+
+The "bundle up mid-screen" was two stacked defects, neither of them the
+stagger:
+
+1. **Gap-frame reflow yank** — the model hand empties one coroutine step
+   before the discard beat claims the elements; in that frame Tick recomputed
+   every outgoing card's arc against the shrunk hand
+   (`ComputeSlotTransform(_handIndex, hand.Count)` with a hand it had left),
+   lerping them toward a degenerate centre. Fix: Tick freezes any element
+   whose card is no longer in the model hand — the pending beat (or
+   ReassignToCards) owns it.
+2. **Mid-cascade burst split** — `EnsureRunning` starts the drain
+   synchronously on the FIRST enqueue, and Unity drills into a yielded nested
+   enumerator in the same step, so `DiscardBurst` collected while the model
+   was still mid-DiscardHand: a one-card burst of hand[0] (leftmost!)
+   launched ahead of the rest — the "leftmost leaves first" symptom. Fix:
+   the burst defers ONE frame before collecting, so the whole cascade sorts
+   as a unit (safe because of fix 1).
+
+Authored feel per user spec: burst collects then launches **rightmost-first**
+(sort by HandIndex descending), strictly one card in flight
+(`HandBeatStaggerSec = CardAnimDurationSec = 0.22`); full 5-card hand ≈ 1.1s.
+Playtest-confirmed 2026-09-17. Pipeline timeouts derive from the constants —
+no other change needed (postmortem P-rule paying off).
+
 ### 0. Design decision — 2026-09-15, user, binding
 
 **Tap-to-play is removed. Every card is pulled out and played the same way.**
