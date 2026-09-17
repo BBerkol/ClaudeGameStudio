@@ -1314,6 +1314,38 @@ Authored feel per user spec: burst collects then launches **rightmost-first**
 Playtest-confirmed 2026-09-17. Pipeline timeouts derive from the constants —
 no other change needed (postmortem P-rule paying off).
 
+### 0f. 2026-09-17 — D8 CLOSED + the intermittent-tooltip mystery solved
+
+Two independent defects hid behind "buff tooltip doesn't work":
+
+1. **Leaked cast session killed ALL idle tooltips.** `_targetingCard` cleared
+   ONLY in `EndCast`; an F5/RestartRun mid-drag skipped it, so `IsCasting`
+   stayed true across the whole next run — and every tooltip (ring, badge,
+   chip) gates on `AttackStateController.IsActive`. This was the on-again
+   off-again tooltip history all session, including the FIRST playtest's "no
+   tooltips" (observed during the stuck-cast lock). Fix:
+   `HandleCombatRebuilt` opens with `EndCast(commit:false)`; plus
+   `ClearTargetingHover` made destruction-safe (interface-typed bar cast to
+   MonoBehaviour so Unity's null-check sees the torn-down prior combat).
+2. **Ancestor hover bubbling on the shared tooltip** — the ACTUAL D8. UGUI
+   fires `OnPointerEnter` on the hit object AND every ancestor;
+   BuffStripCanvas nests inside MainBar (rides its width by design), so
+   hovering a chip ALSO raised MainBar's frame readout on the shared
+   tooltip — last writer won: "Frame 55/55 Functional". Fix:
+   `MainBarWidget.OnPointerEnter` ignores events whose hit object is under a
+   `BuffIconWidget`; exit stays unguarded (hide is idempotent). Known minor
+   quirk: chip → bar-body slide doesn't re-show the frame readout until
+   re-entry (no fresh enter event exists for that move).
+
+The runtime `overrideSorting` re-assert guard in
+`AssignBuffStripWorldCamera` stays (documented trap, warning names any
+occurrence), but its warning was not observed — the prefab data and raycast
+layering were healthy; bubbling was the whole story. Playtest-confirmed
+2026-09-17: chip reads its buff text, ring/badge tooltips healthy.
+
+**Defect register status: D1–D5, D7, D8 CLOSED. Only D6's trigger remains
+open (hardened + instrumented).**
+
 ### 0. Design decision — 2026-09-15, user, binding
 
 **Tap-to-play is removed. Every card is pulled out and played the same way.**
