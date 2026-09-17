@@ -115,6 +115,11 @@ correct if `IntentCanvas` is reparented or `Popups` changes render mode.
 
 ### 2. The registry (not a predicate)
 
+> **SUPERSEDED by Amendment A (2026-09-17)** — the table below is the original
+> 4-member registry, retained as the record; the current 6-member registry,
+> corrected invariant and >7 cap live in §A.2. Do not cite this table as
+> current membership.
+
 | Member | Exit criterion — what would move it to UI Toolkit |
 |---|---|
 | `Popups` | Damage numbers stop tracking world transforms, or `ScreenToPanel` is measured acceptable at expected density |
@@ -149,6 +154,89 @@ to this ADR. It is called a registry check, not a pattern match — the honesty
 matters, because a future reader who believes it is a rule will try to extend it
 by reasoning rather than by amending this document.
 
+## Amendment A (2026-09-17) — category re-derived; `HudAnchors` seated; P4 closes on P4a scope
+
+Governing verdict: `production/td-verdicts/2026-09-17-structural-debt-cleanup.md`
+§4. Trigger: a code read found the registry **factually wrong on the `Popups`
+row** — damage numbers render on `DamagePopupCanvas` (ScreenSpaceOverlay 30,
+built by `DamagePopupSpawner`), not `Popups` (order 60, which hosts the buff
+tooltip). That settles §"Open questions" both ways at once: the fifth registry
+seat was already spoken for, so seating `HudAnchors` exceeds the cap and
+triggers the re-derivation §2 prescribes. Re-derived here, in place.
+
+### A.1 The corrected invariant
+
+`transient` is DROPPED — it was descriptive of the first four members, never
+causal. The mechanism that actually resists USS:
+
+> UGUI is retained for canvases whose element **position or hit-shape is
+> derived from a live scene transform or sprite** — scene-graph parenting,
+> per-frame world-transform following, or sprite-alpha hit testing. UI Toolkit
+> has no scene graph and no sprite-alpha hit test; these surfaces would have to
+> re-implement one in C#, which is a reimplementation, not a migration.
+
+`Combat_HUD`, `Debug`, `CardHand` and the (since-deleted) nested CardHand
+canvas still fail it — the category retains its teeth.
+
+### A.2 The registry, corrected (supersedes §2's table)
+
+| Member | Exit criterion — what would move it to UI Toolkit |
+|---|---|
+| `Popups` | Hosts the **buff tooltip**, not damage numbers (audit correction). Exits when the tooltip stops positioning from a hovered widget's world rect (`BuffTooltipWidget.cs:172-174`) — i.e. tooltip anchoring moves into panel space |
+| `HitZonesCanvas` | UI Toolkit gains a sprite-alpha hit test equivalent to `Image.alphaHitTestMinimumThreshold` |
+| `IntentCanvas` | The intent telegraph stops following the enemy transform |
+| `TargetingReadoutCanvas` | Same, for the player-side readout |
+| `DamagePopupCanvas` | Damage numbers stop projecting from a live world anchor, or `RuntimePanelUtils.ScreenToPanel` is measured acceptable at the 8-popup pool's peak spawn density |
+| `HudAnchors` | See A.3 — the only member with a two-part, ORDERED exit criterion |
+
+MainBar, the per-slot `SlotTargetRing`s, `EnemyNumberBadge`s and the nested
+`BuffStripCanvas` count as **children of `HudAnchors`, not separate members** —
+stated explicitly so the count cannot rot.
+
+**Cap reset:** six members; the category is re-derived (again, not extended) at
+**>7**. Stated explicitly — a cap silently carried forward is worse than none.
+
+### A.3 `HudAnchors` exit criterion
+
+Migrates when **both** hold, in this order:
+
+1. **Authoring parity.** Per-archetype anchor placement can be authored against
+   the live vehicle sprite with the same direct-manipulation affordance Prefab
+   Mode provides today (`VehicleHudAnchors._entries` +
+   `CombatPrefabAuthor.SeedHudAnchor`'s `AnchorPositions` bake). A blind
+   numeric table does not satisfy this — it is the exact workflow
+   `VehicleHudAnchors.cs:14-22` was built to retire after Dredge drifted under
+   it.
+2. **Conversion cost bounded by a real measurement.** A **single** follower
+   component owns the world→panel conversion per vehicle per frame (fanned out
+   by cached local offsets, never per element), measured at **≤0.3 ms/frame for
+   2 vehicles × 12 elements at 1080p** on the reference machine, including the
+   layout-invalidation cost of the inline position writes.
+
+**Ordering is not symmetric.** Until (1) exists, (2) is irrelevant and must not
+be spiked — a passing performance number would otherwise be used to justify
+trading away a designer capability. Re-open this row when a UI Toolkit
+sprite-relative placement workflow exists, not when someone has spare cycles to
+profile.
+
+### A.4 Consequences of the audit correction
+
+This is the **second** canvas-identity error in the ADR-0014/0018 lineage, and
+it was found by a code read, not by the YAML audit. The Validation Criteria's
+"canvas inventory matches a fresh YAML read" is therefore necessary but **not
+sufficient**: YAML tells you a canvas exists; only code tells you what renders
+into it.
+
+### A.5 P4 and P5 under this amendment
+
+**P4 closes on P4a scope** (screen-space surfaces — landed 2026-09-14, defect
+wave remediated 2026-09-16/17). P4b (HudAnchors migration) is retired as a
+phase; its subject is now registry row A.3. **P5** asserts no `Canvas` outside
+the six-name registry, as an explicit literal list in `tools/ci/grep-gates.sh`
+cross-referenced to A.2 — shipped as its own slice after a fresh per-canvas
+CODE audit (per A.4, a YAML sweep cannot certify the list), with the gate
+negative-tested against a deliberately added canvas.
+
 ## Migration Plan
 
 Carried forward from ADR-0014 unchanged except P5. P1–P3 landed; P3's detail is
@@ -159,28 +247,24 @@ preserved in ADR-0014 and not restated here.
 | **P1** | USS design tokens, base controls, `PanelSettings`, `WastelandRun.UI` asmdef | LANDED |
 | **P2** | Slice 6 node-map + Run Complete authored UI Toolkit native | LANDED |
 | **P3** | `CardRewardPicker` + `CombatOutcomeOverlay` migrated | LANDED 2026-06-23 |
-| **P4** | Migrate `Combat_HUD`, `CardHand`, `BuffStripCanvas`, `HudAnchors`, MainBar and rings to UI Toolkit. Highest-risk migration | NOT STARTED — HIGH risk |
-| **P5** | CI registry check per §4 | Same commit as P4 close |
+| **P4** | ~~Migrate `Combat_HUD`, `CardHand`, `BuffStripCanvas`, `HudAnchors`, MainBar and rings~~ **Amendment A: closes on P4a scope** (`Combat_HUD`/`CardHand`/`BuffStripCanvas` panel — LANDED 2026-09-14, remediated 2026-09-16/17). `HudAnchors` is registry row A.3, not migration scope | **CLOSED 2026-09-17** |
+| **P5** | CI registry check per §4 + A.5 | Own slice, after the per-canvas code audit |
 
 Rollback shape is unchanged: each phase ships in its own commit and reverts
 independently.
 
-## Open questions carried into P4
+## Open questions carried into P4 — BOTH RESOLVED by Amendment A (2026-09-17)
 
-**`HudAnchors` is a WorldSpace canvas** that positions MainBar and the rings on
-the vehicle. P4 migrates those surfaces, which means P4 must solve world-anchored
-positioning in UI Toolkit — the exact `ScreenToPanel` cost ADR-0014 worried
-about, now genuinely in scope rather than hand-waved.
+**`HudAnchors`** — resolved: seated in the registry under the re-derived
+invariant (row A.3), with an ordered two-part exit criterion in which authoring
+parity gates the cost measurement, never the reverse. The deciding argument was
+authoring, not performance.
 
-This ADR does **not** pre-judge it. If P4 measures that cost as unacceptable,
-the correct outcome is `HudAnchors` joining the registry with a stated exit
-criterion — not a silent exception. That decision belongs to P4 with numbers
-attached, and it is flagged here so it is made deliberately.
-
-**`DamagePopupCanvas`** (ScreenSpaceOverlay, order 30, in
-`DamagePopupSpawner.prefab`) needs the same determination: whether damage numbers
-actually render there or on `Popups` was not established by this audit, and the
-answer decides its classification.
+**`DamagePopupCanvas`** — resolved by code read: damage numbers render THERE
+(ScreenSpaceOverlay 30, positions projected from live world anchors), not on
+`Popups`, which hosts the buff tooltip. Both rows corrected in A.2. Original
+question prose: git history + capture
+`production/polish-captures/2026-09-17-adr-0018-amendment-a.md`.
 
 ## Consequences
 

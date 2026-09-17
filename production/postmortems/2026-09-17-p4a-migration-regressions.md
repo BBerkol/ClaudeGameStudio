@@ -325,17 +325,24 @@ name the mechanism-novelty list and assert zero hits.
 
 ### One-time debt created by this wave
 
-1. **Owed since 2026-09-16:** write the `try/finally` + stoppable-handle +
+1. ~~**Owed since 2026-09-16:** write the `try/finally` + stoppable-handle +
    validate-before-unregister standard into `.claude/docs/coding-standards.md`
-   (P2). It is currently ruled but unwritten.
-2. **Bounded sweep:** every `rotate` / `scale` / `translate` in
-   `Assets/UI/CombatHudPanel.uss` whose value was ported from a UGUI transform —
-   check the sign against the P1 axis list. The `--tr`/`--bl` pair is fixed; the
-   rest of the file has not been looked at with this lens.
-3. **Run the §3 owed list** under P4's first-look format.
-4. **Still open, unchanged by this document:** D2 chassis-door dead spot (needs the
-   badge-rect measurement and the UX call on whether badges leave `_combatHitTargets`),
-   D6 root cause, D7 discard bundling, D8 buff-chip tooltip.
+   (P2). It is currently ruled but unwritten.~~ **DONE 2026-09-17** — new
+   "Coroutine & One-Shot-Event Lifecycle" section, five rules, both pinned
+   runtime facts cited.
+2. ~~**Bounded sweep:** every `rotate` / `scale` / `translate` in
+   `Assets/UI/CombatHudPanel.uss` whose value was ported from a UGUI
+   transform.~~ **DONE 2026-09-17** — grep shows the four crosshair-quarter
+   `rotate` values are the file's ONLY transform ports; the ±90° pair was
+   fixed, 0°/180° are flip-symmetric. No other exposure.
+3. **Run the §3 owed list** under P4's first-look format. (Partially consumed
+   by the 2026-09-17 defect closures; remainder rides the next playtest.)
+4. ~~**Still open, unchanged by this document:** D2 chassis-door dead spot,
+   D6 root cause, D7 discard bundling, D8 buff-chip tooltip.~~ **Register
+   §0d–0f (2026-09-17): D2 closed — the door "dead spot" was the y-flip, not
+   badge rects (the UX call died with it); D7 closed (gap-frame yank +
+   mid-cascade burst split); D8 closed (leaked cast session + ancestor hover
+   bubbling). D6's trigger alone remains, hardened + instrumented.**
 
 ---
 
